@@ -10,7 +10,7 @@ LDFLAGS =
 
 LIBS = -lpthread
 
-SRCS = stp.c stp_timer.c main.c device_internal.c
+SRCS = stp.c stp_timer.c main.c broadcast.c device_internal.c mac.c 
 
 OBJS = $(patsubst %.c,%.o,$(SRCS))
 

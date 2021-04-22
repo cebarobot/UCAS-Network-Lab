@@ -1,5 +1,6 @@
 #include "base.h"
 #include "ether.h"
+#include "mac.h"
 #include "stp.h"
 #include "utils.h"
 #include "log.h"
@@ -12,12 +13,24 @@ void handle_packet(iface_info_t *iface, char *packet, int len)
 {
 	struct ether_header *eh = (struct ether_header *)packet;
 	if (memcmp(eh->ether_dhost, eth_stp_addr, sizeof(*eth_stp_addr))) {
-		// TODO: forward this packet, if this lab has merged with 05-switch.
-		fprintf(stdout, "TODO: received non-stp packet, forward it.\n");
-		return ;
-	}
+		if (iface_stp_enable(iface)) {
+			struct ether_header *eh = (struct ether_header *)packet;
+			log(DEBUG, "Receive packet from " ETHER_STRING " at %s.", ETHER_FMT(eh->ether_shost), iface->name);
+			log(DEBUG, "The dst mac address is " ETHER_STRING ".", ETHER_FMT(eh->ether_dhost));
+			
+			iface_info_t * dest_iface = lookup_port(eh->ether_dhost);
+			if (dest_iface) {
+				log(DEBUG, "Send this packet to %s.", dest_iface->name);
+				iface_send_packet(dest_iface, packet, len);
+			} else {
+				broadcast_packet(iface, packet, len);
+			}
 
-	stp_port_handle_packet(iface->port, packet, len);
+			insert_mac_port(eh->ether_shost, iface);
+		}
+	} else {
+		stp_port_handle_packet(iface->port, packet, len);
+	}
 
 	free(packet);
 }
@@ -80,6 +93,7 @@ int main(int argc, const char **argv)
 	}
 
 	init_ustack();
+	init_mac_port_table();
 
 	stp_init(&instance->iface_list);
 

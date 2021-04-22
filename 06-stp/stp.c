@@ -19,6 +19,7 @@
 stp_t *stp;
 
 const u8 eth_stp_addr[] = { 0x01, 0x80, 0xC2, 0x00, 0x00, 0x01 };
+const char *stp_port_state_str[] = { "ROOT", "DESIGNATED", "ALTERNATE" };
 
 static bool stp_is_root_switch(stp_t *stp)
 {
@@ -31,16 +32,21 @@ static bool stp_port_is_designated(stp_port_t *p)
 		p->designated_port == p->port_id;
 }
 
-static const char *stp_port_state(stp_port_t *p)
+static enum STP_PORT_STATE stp_port_state(stp_port_t *p)
 {
-	if (p->stp->root_port && \
+	if (p->stp->root_port && 
 			p->port_id == p->stp->root_port->port_id)
-		return "ROOT";
+		return ROOT;
 	else if (p->designated_switch == p->stp->switch_id &&
-		p->designated_port == p->port_id)
-		return "DESIGNATED";
+			p->designated_port == p->port_id)
+		return DESIGNATED;
 	else
-		return "ALTERNATE";
+		return ALTERNATE;
+}
+
+int iface_stp_enable(iface_info_t *iface) {
+	log(DEBUG, "stp_port_state is %s", stp_port_state_str[stp_port_state(iface->port)]);
+	return stp_port_state(iface->port) != ALTERNATE;
 }
 
 static void stp_port_send_packet(stp_port_t *p, void *stp_msg, int msg_len)
@@ -140,7 +146,7 @@ void *stp_timer_routine(void *arg)
 	return NULL;
 }
 
-inline static int priority_compare(u64 root1, u64 root2, int cost1, 
+static inline int priority_compare(u64 root1, u64 root2, int cost1, 
 		int cost2, u64 switch1, u64 switch2, int port1, int port2) {
 	if (root1 != root2) {
 		return root1 < root2;
@@ -278,7 +284,7 @@ static void *stp_dump_state(void *arg)
 	for (int i = 0; i < stp->nports; i++) {
 		stp_port_t *p = &stp->ports[i];
 		log(INFO, "port id: %02d, role: %s.", get_port_id(p->port_id), \
-				stp_port_state(p));
+				stp_port_state_str[stp_port_state(p)]);
 		log(INFO, "\tdesignated ->root: %04x, ->switch: %04x, " \
 				"->port: %02d, ->cost: %d.", \
 				get_switch_id(p->designated_root), \

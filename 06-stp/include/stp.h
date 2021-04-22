@@ -11,6 +11,9 @@
 
 extern const u8 eth_stp_addr[];
 
+enum STP_PORT_STATE { ROOT, DESIGNATED, ALTERNATE };
+extern const char *stp_port_state_str[];
+
 typedef struct stp stp_t;
 struct stp_port {
 	stp_t *stp;					// pointer to stp
@@ -50,5 +53,7 @@ void stp_init(struct list_head *iface_list);
 void stp_destroy();
 
 void stp_port_handle_packet(stp_port_t *, char *packet, int pkt_len);
+
+int iface_stp_enable(iface_info_t *iface);
 
 #endif
