@@ -106,7 +106,7 @@ static void stp_send_config(stp_t *stp)
 
 static void stp_handle_hello_timeout(void *arg)
 {
-	// log(DEBUG, "hello timer expired, now = %llx.", time_tick_now());
+	log(DEBUG, "hello timer expired, now = %llx.", time_tick_now());
 
 	stp_t *stp = arg;
 	stp_send_config(stp);
@@ -140,10 +140,122 @@ void *stp_timer_routine(void *arg)
 	return NULL;
 }
 
+inline static int priority_compare(u64 root1, u64 root2, int cost1, 
+		int cost2, u64 switch1, u64 switch2, int port1, int port2) {
+	if (root1 != root2) {
+		return root1 < root2;
+	} else if (cost1 != cost2) {
+		return cost1 < cost2;
+	} else if (switch1 != switch2) {
+		return switch1 < switch2;
+	} else if (port1 != port2) {
+		return port1 < port2;
+	}
+	// if the two config is same, 1 has higher 
+	// priority than 2.
+	return 1;
+}
+
 static void stp_handle_config_packet(stp_t *stp, stp_port_t *p,
 		struct stp_config *config)
 {
+#define get_switch_id(switch_id) (int)(switch_id & 0xFFFF)
+#define get_port_id(port_id) (int)(port_id & 0xFF)
 	// TODO: handle config packet here
+	if (priority_compare(
+		ntohll(config->root_id), p->designated_root,
+		ntohl(config->root_path_cost), p->designated_cost,
+		ntohll(config->switch_id), p->designated_switch,
+		ntohs(config->port_id), p->designated_port
+	)) {
+		// config packet is better than this port config
+		// this port is non-designated port
+		log(DEBUG, "[non] Switch: %04x, Port: %02d receive from Switch: %04x, Port: %02d\n"
+				"ROOT: %04x : %04x, COST: %d : %d", 
+				get_switch_id(stp->switch_id), get_port_id(p->port_id), 
+				get_switch_id(ntohll(config->switch_id)), get_port_id(ntohs(config->port_id)),
+				get_switch_id(p->designated_root), get_switch_id(ntohll(config->root_id)),
+				p->designated_cost, ntohl(config->root_path_cost));
+		
+		// replace this port config
+		p->designated_root = ntohll(config->root_id);
+		p->designated_cost = ntohl(config->root_path_cost);
+		p->designated_switch = ntohll(config->switch_id);
+		p->designated_port = ntohs(config->port_id);
+
+		// update switch status
+		stp_port_t *root_port = NULL;
+		for (int i = 0; i < stp->nports; i++) {
+			stp_port_t *qqq = &stp->ports[i];
+			if (!stp_port_is_designated(qqq)) {
+				if (root_port) {
+					if (priority_compare(
+						qqq->designated_root, root_port->designated_root,
+						qqq->designated_cost, root_port->designated_cost,
+						qqq->designated_switch, root_port->designated_switch,
+						qqq->designated_port, root_port->designated_port
+					)) {
+						root_port = qqq;
+					}
+				} else {
+					root_port = qqq;
+				}
+			}
+		}
+
+		if (root_port) {
+			// this switch is not root
+			stp->root_port = root_port;
+			stp->designated_root = root_port->designated_root;
+			stp->root_path_cost = root_port->designated_cost + root_port->path_cost;
+			
+			log(DEBUG, "======Switch %04x: root_port %02d, cost %d = %d + %d", 
+					get_switch_id(stp->switch_id), get_port_id(root_port->port_id), 
+					stp->root_path_cost, root_port->designated_cost, root_port->path_cost);
+		} else {
+			// this switch is root
+			stp->root_port = NULL;
+			stp->designated_root = stp->switch_id;
+			stp->root_path_cost = 0;
+		}
+
+		// update port config
+		for (int i = 0; i < stp->nports; i++) {
+			stp_port_t *qqq = &stp->ports[i];
+			if (stp_port_is_designated(qqq)) {
+				qqq->designated_root = stp->designated_root;
+				qqq->designated_cost = stp->root_path_cost;
+			}
+		}
+
+		// stop hello if this switch is not root
+		if (!stp_is_root_switch(stp)) {
+			stp_stop_timer(&stp->hello_timer);
+		}
+
+		// send config to all designated port
+		stp_send_config(stp);
+	} else {
+		// config packet is worse than this port config
+		// this port is designated port
+		log(DEBUG, "[des] Switch: %04x, Port: %02d receive from Switch: %04x, Port: %02d\n"
+				"ROOT: %04x : %04x, COST: %d : %d, SWITCH: %04x : %04x, PORT: %04x : %04x", 
+				get_switch_id(stp->switch_id), get_port_id(p->port_id), 
+				get_switch_id(ntohll(config->switch_id)), get_port_id(ntohs(config->port_id)),
+				get_switch_id(p->designated_root), get_switch_id(ntohll(config->root_id)),
+				p->designated_cost, ntohl(config->root_path_cost),
+				get_switch_id(p->designated_switch), get_switch_id(ntohll(config->switch_id)), 
+				get_port_id(p->port_id), get_port_id(ntohs(config->port_id))
+				);
+		
+		// p->designated_port = p->port_id;
+		// p->designated_switch = stp->switch_id;
+		log(DEBUG, "[des] %02d : %02d, %04x : %04x", 
+				get_port_id(p->designated_port), get_port_id(p->port_id), 
+				get_switch_id(p->designated_switch), get_switch_id(stp->switch_id));
+
+		stp_port_send_config(p);
+	}
 
 }
 
