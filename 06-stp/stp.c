@@ -231,6 +231,16 @@ static void stp_handle_config_packet(stp_t *stp, stp_port_t *p,
 			if (stp_port_is_designated(qqq)) {
 				qqq->designated_root = stp->designated_root;
 				qqq->designated_cost = stp->root_path_cost;
+			} else if (priority_compare(
+				stp->designated_root, qqq->designated_root,
+				stp->root_path_cost, qqq->designated_cost,
+				stp->switch_id, qqq->designated_switch,
+				qqq->port_id, qqq->designated_port
+			)) {
+				qqq->designated_root = stp->designated_root;
+				qqq->designated_cost = stp->root_path_cost;
+				qqq->designated_switch = stp->switch_id;
+				qqq->designated_port = qqq->port_id;
 			}
 		}
 
@@ -253,9 +263,12 @@ static void stp_handle_config_packet(stp_t *stp, stp_port_t *p,
 				get_switch_id(p->designated_switch), get_switch_id(ntohll(config->switch_id)), 
 				get_port_id(p->port_id), get_port_id(ntohs(config->port_id))
 				);
-		
+
+		// p->designated_root = stp->designated_root;
+		// p->designated_cost = stp->root_path_cost;
 		// p->designated_port = p->port_id;
 		// p->designated_switch = stp->switch_id;
+
 		log(DEBUG, "[des] %02d : %02d, %04x : %04x", 
 				get_port_id(p->designated_port), get_port_id(p->port_id), 
 				get_switch_id(p->designated_switch), get_switch_id(stp->switch_id));
