@@ -24,15 +24,18 @@ def config_ip(net):
 
 def cwnd_monitor(net, fname):
     h1, h2 = net.get('h1', 'h2')
+    pat = re.compile(r'cwnd:([\d]+)\s')
     cmd = 'ss -i | grep %s:5001 -A 1 | grep cwnd' % (h2.IP())
-    with open(fname, 'w') as ofile:
+    with open(fname, 'w', buffering=1) as ofile:
         while 1:
             t = time()
             p = h1.popen(cmd, shell=True, stdout=PIPE)
             output = p.stdout.read()
-            if output != '':
-                ofile.write('%f, %s' % (t, output))
-            sleep(0.01)
+            matches = pat.findall(output)
+            if matches and len(matches) > 0:
+                ofile.write('%f, %s\n' % (t, matches[0]))
+                # ofile.write('%f, %s' % (t, output))
+            sleep(0.05)
 
 def start_cwnd_monitor(net, fname):
     print 'Start cwnd monitor ...'
@@ -48,7 +51,7 @@ def qlen_monitor(net, fname):
     r1 = net.get('r1')
     pat = re.compile(r'backlog\s[^\s]+\s([\d]+)p')
     cmd = 'tc -s qdisc show dev r1-eth1'
-    with open(fname, 'w') as ofile:
+    with open(fname, 'w', buffering=1) as ofile:
         while 1:
             t = time()
             p = r1.popen(cmd, shell=True, stdout=PIPE)
@@ -56,7 +59,8 @@ def qlen_monitor(net, fname):
             matches = pat.findall(output)
             if matches and len(matches) > 1:
                 ofile.write('%f, %s\n' % (t, matches[1]))
-            sleep(0.01)
+                # ofile.write('%f, %s\n' % (t, output))
+            sleep(0.05)
 
 def start_qlen_monitor(net, fname):
     print 'Start queue monitor ...'
@@ -70,14 +74,17 @@ def stop_qlen_monitor(monitor):
 
 def rtt_monitor(net, fname):
     h1, h2 = net.get('h1', 'h2')
+    pat = re.compile(r'time=([\d.]+)\s')
     cmd = 'ping -c 1 %s | grep ttl' % (h2.IP())
-    with open(fname, 'w') as ofile:
+    with open(fname, 'w', buffering=1) as ofile:
         while 1:
             t = time()
             p = h1.popen(cmd, shell=True, stdout=PIPE)
             output = p.stdout.read()
-            if output != '':
-                ofile.write('%f, %s' % (t, output))
+            matches = pat.findall(output)
+            if matches and len(matches) > 0:
+                ofile.write('%f, %s\n' % (t, matches[0]))
+                # ofile.write('%f, %s' % (t, output))
             sleep(0.1)
 
 def start_rtt_monitor(net, fname):
@@ -90,11 +97,13 @@ def stop_rtt_monitor(monitor):
     print 'Stop rtt monitor ...'
     monitor.terminate()
 
-def start_iperf(net, duration):
+def start_iperf(net, duration, fname):
     h1, h2 = net.get('h1', 'h2')
     print 'Start iperf ...'
     server = h2.popen('iperf -s -w 16m')
-    client = h1.popen('iperf -c %s -t %d' % (h2.IP(), duration+ 5))
+    # client = h1.popen('iperf -c %s -t %d' % (h2.IP(), duration+ 5))
+    # client = h1.cmd('iperf -c %s -t %d -i 0.1 >%s &' % (h2.IP(), duration+ 5, fname))
+    client = h1.cmd('iperf -c %s -t %d -i 1 >%s.1 &' % (h2.IP(), duration+ 5, fname))
 
 def stop_iperf():
     print 'Kill iperf ...'

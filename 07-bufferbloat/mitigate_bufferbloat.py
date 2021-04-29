@@ -31,7 +31,7 @@ def mitigate_bufferbloat(net, duration=60):
     if not os.path.exists(dname):
         os.makedirs(dname)
 
-    start_iperf(net, duration)
+    start_iperf(net, duration, '%s/iperf.txt' % (dname))
     rmon = start_rtt_monitor(net, '%s/rtt.txt' % (dname))
 
     dynamic_bw(net, duration)
@@ -48,6 +48,6 @@ if __name__ == '__main__':
     net.start()
 
     # CLI(net)
-    mitigate_bufferbloat(net, 60)
+    mitigate_bufferbloat(net, 300)
 
     net.stop()

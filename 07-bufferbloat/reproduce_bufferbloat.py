@@ -32,15 +32,15 @@ def reproduce_bufferbloat(net, duration=60):
         os.makedirs(dname)
 
     # monitoring the cwnd size of h1
-    cmon = start_cwnd_monitor(net, '%s/cwnd.txt' % (dname))
+    cmon = start_cwnd_monitor(net, '%s/cwnd.csv' % (dname))
 
     # monitoring the queue sizes of r1's interface (connected with h2)
-    qmon = start_qlen_monitor(net, '%s/qlen.txt' % (dname))
+    qmon = start_qlen_monitor(net, '%s/qlen.csv' % (dname))
 
     # monitoring the rtt between h1 and h2
-    rmon = start_rtt_monitor(net, '%s/rtt.txt' % (dname))
+    rmon = start_rtt_monitor(net, '%s/rtt.csv' % (dname))
 
-    start_iperf(net, duration)
+    start_iperf(net, duration, '%s/iperf.txt' % (dname))
     sleep(duration)
 
     stop_cwnd_monitor(cmon)
