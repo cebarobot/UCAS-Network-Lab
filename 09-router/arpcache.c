@@ -202,7 +202,7 @@ void *arpcache_sweep(void *arg)
 
 		// sweep IP->mac entry
 		for (int i = 0; i < MAX_ARP_SIZE; i++) {
-			if (now - arpcache.entries[i].added >= ARP_ENTRY_TIMEOUT) {
+			if (arpcache.entries[i].valid && now - arpcache.entries[i].added >= ARP_ENTRY_TIMEOUT) {
 				arpcache.entries[i].valid = 0;
 			}
 		}
