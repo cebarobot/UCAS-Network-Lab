@@ -52,5 +52,6 @@ static inline u16 icmp_checksum(struct icmphdr *icmp, int len)
 }
 
 void icmp_send_packet(const char *in_pkt, int len, u8 type, u8 code);
+void handle_icmp_packet(char *packet, int len);
 
 #endif

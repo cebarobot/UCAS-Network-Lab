@@ -67,3 +67,13 @@ void icmp_send_packet(const char *in_pkt, int len, u8 type, u8 code)
 		ip_send_packet(out_pkt, out_len);
 	}
 }
+
+void handle_icmp_packet(char *packet, int len) {
+	struct iphdr * ip_hdr = packet_to_ip_hdr(packet);
+	struct icmphdr * icmp_hdr = (void *)IP_DATA(ip_hdr);
+	if (icmp_hdr->type == ICMP_ECHOREQUEST) {
+		icmp_send_packet(packet, len, ICMP_ECHOREPLY, 0);
+	}
+
+	free(packet);
+}

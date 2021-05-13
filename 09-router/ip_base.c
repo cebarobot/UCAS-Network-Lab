@@ -62,10 +62,12 @@ void ip_send_packet(char *packet, int len)
 		free(packet);
 		return ;
 	}
+	// get next hop
+	u32 next_hop = p_rt->gw ? p_rt->gw : daddr;
 
 	// setup ether header
 	memcpy(eth_hdr->ether_shost, p_rt->iface->mac, ETH_ALEN);
 	eth_hdr->ether_type = htons(ETH_P_IP);
 
-	iface_send_packet_by_arp(p_rt->iface, daddr, packet, len);
+	iface_send_packet_by_arp(p_rt->iface, next_hop, packet, len);
 }
