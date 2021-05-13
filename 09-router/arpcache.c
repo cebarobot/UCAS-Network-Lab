@@ -162,7 +162,7 @@ void arpcache_insert(u32 ip4, u8 mac[ETH_ALEN])
 			struct cached_pkt * p_pkt = NULL, * q_pkt = NULL;
 			list_for_each_entry_safe(p_pkt, q_pkt, &p_req->cached_packets, list) {
 				log(DEBUG, "an pending packet (%p) at %p.", p_pkt->packet, p_pkt);
-				
+
 				struct ether_header *eth_hdr = (void *)p_pkt->packet;
 				memcpy(eth_hdr->ether_dhost, mac, ETH_ALEN);
 				iface_send_packet(p_req->iface, p_pkt->packet, p_pkt->len);
@@ -192,7 +192,7 @@ void *arpcache_sweep(void *arg)
 	while (1) {
 		sleep(1);
 		// fprintf(stderr, "TODO: sweep arpcache periodically: remove old entries, resend arp requests.\n");
-		log(DEBUG, "sweep arpcache periodically: remove old entries, resend arp requests.");
+		// log(DEBUG, "sweep arpcache periodically: remove old entries, resend arp requests.");
 		
 		struct list_head unreachable_list;
 		init_list_head(&unreachable_list);
@@ -203,6 +203,8 @@ void *arpcache_sweep(void *arg)
 		// sweep IP->mac entry
 		for (int i = 0; i < MAX_ARP_SIZE; i++) {
 			if (arpcache.entries[i].valid && now - arpcache.entries[i].added >= ARP_ENTRY_TIMEOUT) {
+				log(DEBUG, "sweep entries: " IP_FMT "->" ETHER_STRING, 
+						HOST_IP_FMT_STR(arpcache.entries[i].ip4), ETHER_FMT(arpcache.entries[i].mac));
 				arpcache.entries[i].valid = 0;
 			}
 		}

@@ -24,12 +24,15 @@ void icmp_send_packet(const char *in_pkt, int len, u8 type, u8 code)
 
 	// calculate packet length
 	if (type == ICMP_ECHOREPLY) {
+		log(DEBUG, "ICMP_ECHOREPLY.");
 		icmp_len = ntohs(in_ip_hdr->tot_len) - IP_HDR_SIZE(in_ip_hdr);
 		out_len = ETHER_HDR_SIZE + IP_BASE_HDR_SIZE + icmp_len;
 	} else if (type == ICMP_DEST_UNREACH || type == ICMP_TIME_EXCEEDED) {
+		log(DEBUG, "ICMP_DEST_UNREACH || ICMP_TIME_EXCEEDED.");
 		icmp_len = ICMP_HDR_SIZE + IP_HDR_SIZE(in_ip_hdr) + ICMP_COPIED_DATA_LEN;
 		out_len = ETHER_HDR_SIZE + IP_BASE_HDR_SIZE + icmp_len;
 	}
+	log(DEBUG, "icmp_len = %d, out_len = %d", icmp_len, out_len);
 
 	// allocate packet
 	out_pkt = malloc(out_len);
