@@ -19,7 +19,6 @@ void handle_ip_packet(iface_info_t *iface, char *packet, int len)
 
 	// parse ip packet header
 	struct iphdr * ip_hdr = packet_to_ip_hdr(packet);
-	char * ip_data = IP_DATA(ip_hdr);
 	u32 daddr = ntohl(ip_hdr->daddr);
 
 	// check dest

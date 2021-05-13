@@ -73,7 +73,6 @@ void handle_arp_packet(iface_info_t *iface, char *packet, int len)
 {
 	// TODO:
 	fprintf(stderr, "TODO: process arp packet: arp request & arp reply.\n");
-	struct ether_header * eth_hdr = (void *) packet;
 	struct ether_arp * arp_hdr = (void *)(packet + ETHER_HDR_SIZE);
 
 	u32 arp_spa = ntohl(arp_hdr->arp_spa);

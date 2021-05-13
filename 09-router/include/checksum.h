@@ -5,8 +5,9 @@
 
 // calculate the checksum of the given buf, providing sum 
 // as the initial value
-static inline u16 checksum(u16 *ptr, int nbytes, u32 sum)
+static inline u16 checksum(void *t_ptr, int nbytes, u32 sum)
 {
+    u16 * ptr = t_ptr;
 	if (nbytes % 2) {
 		sum += ((u8 *)ptr)[--nbytes];
 	}
