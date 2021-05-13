@@ -4,7 +4,7 @@
 #include "rtable.h"
 #include "arp.h"
 
-// #include "log.h"
+#include "log.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -50,8 +50,8 @@ rt_entry_t *longest_prefix_match(u32 dst)
 // router itself. This function is used to send ICMP packets.
 void ip_send_packet(char *packet, int len)
 {
-	// TODO:
-	fprintf(stderr, "TODO: send ip packet.\n");
+	// fprintf(stderr, "TODO: send ip packet.\n");
+	log(DEBUG, "send ip packet.");
 	struct ether_header * eth_hdr = (void *)packet;
 	struct iphdr * ip_hdr = packet_to_ip_hdr(packet);
 

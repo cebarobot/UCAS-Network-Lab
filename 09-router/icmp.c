@@ -4,6 +4,8 @@
 #include "arp.h"
 #include "base.h"
 
+#include "log.h"
+
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -11,8 +13,8 @@
 // send icmp packet
 void icmp_send_packet(const char *in_pkt, int len, u8 type, u8 code)
 {
-	// TODO:
-	fprintf(stderr, "TODO: malloc and send icmp packet.\n");
+	// fprintf(stderr, "TODO: malloc and send icmp packet.\n");
+	log(DEBUG, "malloc and send icmp packet.");
 	// prase in_pkt
 	struct iphdr * in_ip_hdr = packet_to_ip_hdr(in_pkt);
 	char * in_ip_data = IP_DATA(in_ip_hdr);

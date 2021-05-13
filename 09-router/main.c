@@ -18,7 +18,7 @@ void handle_packet(iface_info_t *iface, char *packet, int len)
 {
 	struct ether_header *eh = (struct ether_header *)packet;
 
-	log(DEBUG, "got packet from %s, %d bytes, proto: 0x%04hx\n", 
+	log(DEBUG, "got packet from %s, %d bytes, proto: 0x%04hx", 
 			iface->name, len, ntohs(eh->ether_type));
 	switch (ntohs(eh->ether_type)) {
 		case ETH_P_IP:

@@ -14,8 +14,8 @@
 // packet.
 void handle_ip_packet(iface_info_t *iface, char *packet, int len)
 {
-	// TODO:
-	fprintf(stderr, "TODO: handle ip packet.\n");
+	// fprintf(stderr, "TODO: handle ip packet.\n");
+	log(DEBUG, "handle ip packet.");
 
 	// parse ip packet header
 	struct iphdr * ip_hdr = packet_to_ip_hdr(packet);

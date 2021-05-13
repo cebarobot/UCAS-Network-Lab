@@ -18,4 +18,7 @@ struct ether_header {
 
 #define ETHER_HDR_SIZE sizeof(struct ether_header)
 
+#define ETHER_STRING "%02x:%02x:%02x:%02x:%02x:%02x"
+#define ETHER_FMT(m) m[0],m[1],m[2],m[3],m[4],m[5]
+
 #endif

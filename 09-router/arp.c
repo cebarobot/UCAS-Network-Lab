@@ -1,8 +1,10 @@
 #include "arp.h"
+#include "ip.h"
 #include "base.h"
 #include "types.h"
 #include "ether.h"
 #include "arpcache.h"
+#include "log.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -71,8 +73,7 @@ void arp_send_reply(iface_info_t *iface, struct ether_arp *req_hdr)
 
 void handle_arp_packet(iface_info_t *iface, char *packet, int len)
 {
-	// TODO:
-	fprintf(stderr, "TODO: process arp packet: arp request & arp reply.\n");
+	// fprintf(stderr, "TODO: process arp packet: arp request & arp reply.\n");
 	struct ether_arp * arp_hdr = (void *)(packet + ETHER_HDR_SIZE);
 
 	u32 arp_spa = ntohl(arp_hdr->arp_spa);
@@ -80,13 +81,15 @@ void handle_arp_packet(iface_info_t *iface, char *packet, int len)
 	u16 arp_op = ntohs(arp_hdr->arp_op);
 
 	// check arp packet op
-	if (arp_hdr->arp_op == ARPOP_REPLY) {
+	if (arp_op == ARPOP_REPLY) {
+		log(DEBUG, "handle arp reply packet: " IP_FMT, LE_IP_FMT_STR(arp_spa));
 		// check arp packet target
 		if (arp_tpa == iface->ip && memcmp(iface->mac, arp_hdr->arp_tha, ETH_ALEN) == 0) {
 			// insert info into arpcache
 			arpcache_insert(arp_spa, arp_hdr->arp_sha);
 		}
-	} else if (arp_hdr->arp_op == ARPOP_REQUEST) {
+	} else if (arp_op == ARPOP_REQUEST) {
+		log(DEBUG, "handle arp request packet: " IP_FMT, LE_IP_FMT_STR(arp_tpa));
 		// check arp packet target
 		if (arp_tpa == iface->ip) {
 			// send reply
@@ -104,6 +107,7 @@ void handle_arp_packet(iface_info_t *iface, char *packet, int len)
 // this packet into arpcache, and send arp request.
 void iface_send_packet_by_arp(iface_info_t *iface, u32 dst_ip, char *packet, int len)
 {
+	log(DEBUG, "send packet to " IP_FMT " via %s.", LE_IP_FMT_STR(dst_ip), iface->name);
 	struct ether_header *eh = (struct ether_header *)packet;
 	memcpy(eh->ether_shost, iface->mac, ETH_ALEN);
 	eh->ether_type = htons(ETH_P_IP);
@@ -111,12 +115,12 @@ void iface_send_packet_by_arp(iface_info_t *iface, u32 dst_ip, char *packet, int
 	u8 dst_mac[ETH_ALEN];
 	int found = arpcache_lookup(dst_ip, dst_mac);
 	if (found) {
-		// log(DEBUG, "found the mac of %x, send this packet", dst_ip);
+		log(DEBUG, "found the mac of " IP_FMT " , send this packet", LE_IP_FMT_STR(dst_ip));
 		memcpy(eh->ether_dhost, dst_mac, ETH_ALEN);
 		iface_send_packet(iface, packet, len);
 	}
 	else {
-		// log(DEBUG, "lookup %x failed, pend this packet", dst_ip);
+		log(DEBUG, "lookup " IP_FMT " failed, pend this packet", LE_IP_FMT_STR(dst_ip));
 		arpcache_append_packet(iface, dst_ip, packet, len);
 	}
 }

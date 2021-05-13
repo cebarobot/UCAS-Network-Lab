@@ -3,6 +3,9 @@
 #include "ether.h"
 #include "icmp.h"
 
+#include "ip.h"
+#include "log.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -78,11 +81,13 @@ int arpcache_lookup(u32 ip4, u8 mac[ETH_ALEN])
 void arpcache_append_packet(iface_info_t *iface, u32 ip4, char *packet, int len)
 {
 	// fprintf(stderr, "TODO: append the ip address if lookup failed, and send arp request if necessary.\n");
+	log(DEBUG, "append the ip address if lookup failed, and send arp request if necessary.");
 	pthread_mutex_lock(&arpcache.lock);
 
 	struct cached_pkt * cached_packet = malloc(sizeof(struct cached_pkt));
 	cached_packet->packet = packet;
 	cached_packet->len = len;
+	log(DEBUG, "append packet (%p, %p, %d) in %p", cached_packet->packet, packet, len, cached_packet);
 
 	int found = 0;
 	struct arp_req * one_entry = NULL;
@@ -108,6 +113,8 @@ void arpcache_append_packet(iface_info_t *iface, u32 ip4, char *packet, int len)
 	// insert into cached_packets
 	list_add_tail(&cached_packet->list, &one_entry->cached_packets);
 
+	log(DEBUG, "append packet (%p, %p, %d) in %p", cached_packet->packet, packet, len, cached_packet);
+
 	pthread_mutex_unlock(&arpcache.lock);
 }
 
@@ -117,6 +124,7 @@ void arpcache_append_packet(iface_info_t *iface, u32 ip4, char *packet, int len)
 void arpcache_insert(u32 ip4, u8 mac[ETH_ALEN])
 {
 	// fprintf(stderr, "TODO: insert ip->mac entry, and send all the pending packets.\n");
+	log(DEBUG, "insert " IP_FMT "->mac entry, and send all the pending packets.", LE_IP_FMT_STR(ip4));
 	pthread_mutex_lock(&arpcache.lock);
 	time_t now = time(NULL);
 
@@ -137,6 +145,8 @@ void arpcache_insert(u32 ip4, u8 mac[ETH_ALEN])
 			break;
 		}
 	}
+	log(DEBUG, "insert into arpcache.entries[%d]", pos);
+
 	// inerst into arpcache
 	arpcache.entries[pos].valid = 1;
 	arpcache.entries[pos].added = now;
@@ -147,8 +157,12 @@ void arpcache_insert(u32 ip4, u8 mac[ETH_ALEN])
 	struct arp_req * p_req = NULL, * q_req = NULL;
 	list_for_each_entry_safe(p_req, q_req, &arpcache.req_list, list) {
 		if (p_req->ip4 == ip4) {
+			log(DEBUG, "arp_req: " IP_FMT " at %s", LE_IP_FMT_STR(ip4), p_req->iface->name);
+
 			struct cached_pkt * p_pkt = NULL, * q_pkt = NULL;
 			list_for_each_entry_safe(p_pkt, q_pkt, &p_req->cached_packets, list) {
+				log(DEBUG, "an pending packet (%p) at %p.", p_pkt->packet, p_pkt);
+				
 				struct ether_header *eth_hdr = (void *)p_pkt->packet;
 				memcpy(eth_hdr->ether_dhost, mac, ETH_ALEN);
 				iface_send_packet(p_req->iface, p_pkt->packet, p_pkt->len);
@@ -160,7 +174,7 @@ void arpcache_insert(u32 ip4, u8 mac[ETH_ALEN])
 		list_delete_entry(&p_req->list);
 		free(p_req);
 	}
-
+	log(DEBUG, "arpcache finished.");
 	pthread_mutex_unlock(&arpcache.lock);
 }
 
@@ -177,7 +191,8 @@ void *arpcache_sweep(void *arg)
 {
 	while (1) {
 		sleep(1);
-		// fprintf(stderr, "TODO: sweep arpcache periodically: remove old entries, resend arp requests .\n");
+		// fprintf(stderr, "TODO: sweep arpcache periodically: remove old entries, resend arp requests.\n");
+		log(DEBUG, "sweep arpcache periodically: remove old entries, resend arp requests.");
 		
 		struct list_head unreachable_list;
 		init_list_head(&unreachable_list);

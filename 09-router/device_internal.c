@@ -31,6 +31,8 @@ void iface_send_packet(iface_info_t *iface, char *packet, int len)
 	struct ether_header *eh = (struct ether_header *)packet;
 	memcpy(addr.sll_addr, eh->ether_dhost, ETH_ALEN);
 
+	log(DEBUG, "iface_send_packet to " ETHER_STRING, ETHER_FMT(eh->ether_dhost));
+
 	if (sendto(iface->fd, packet, len, 0, (const struct sockaddr *)&addr,
 				sizeof(struct sockaddr_ll)) < 0) {
 		perror("Send raw packet failed");
