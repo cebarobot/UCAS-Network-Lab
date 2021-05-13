@@ -23,7 +23,7 @@ void arp_send_request(iface_info_t *iface, u32 dst_ip)
 	// prepare ether_header
 	memcpy(eth_hdr->ether_shost, iface->mac, ETH_ALEN);
 	memset(eth_hdr->ether_dhost, 0xFF, ETH_ALEN);
-	eth_hdr->ether_type = ETH_P_ARP;
+	eth_hdr->ether_type = htons(ETH_P_ARP);
 
 	// prepare ether_arp
 	req_hdr->arp_hrd = htons(ARPHRD_ETHER);
@@ -52,7 +52,7 @@ void arp_send_reply(iface_info_t *iface, struct ether_arp *req_hdr)
 	// prepare ether_header
 	memcpy(eth_hdr->ether_shost, iface->mac, ETH_ALEN);
 	memcpy(eth_hdr->ether_dhost, req_hdr->arp_sha, ETH_ALEN);
-	eth_hdr->ether_type = ETH_P_ARP;
+	eth_hdr->ether_type = htons(ETH_P_ARP);
 
 	// prepare ether_arp
 	rply_hdr->arp_hrd = htons(ARPHRD_ETHER);
@@ -77,6 +77,7 @@ void handle_arp_packet(iface_info_t *iface, char *packet, int len)
 
 	u32 arp_spa = ntohl(arp_hdr->arp_spa);
 	u32 arp_tpa = ntohl(arp_hdr->arp_tpa);
+	u16 arp_op = ntohs(arp_hdr->arp_op);
 
 	// check arp packet op
 	if (arp_hdr->arp_op == ARPOP_REPLY) {

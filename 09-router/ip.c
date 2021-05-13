@@ -33,6 +33,7 @@ void handle_ip_packet(iface_info_t *iface, char *packet, int len)
 				free(packet);
 				break;
 		}
+		return;
 	}
 	
 	// handle TTL

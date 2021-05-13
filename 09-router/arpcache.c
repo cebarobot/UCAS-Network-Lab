@@ -149,7 +149,7 @@ void arpcache_insert(u32 ip4, u8 mac[ETH_ALEN])
 		if (p_req->ip4 == ip4) {
 			struct cached_pkt * p_pkt = NULL, * q_pkt = NULL;
 			list_for_each_entry_safe(p_pkt, q_pkt, &p_req->cached_packets, list) {
-				struct ether_header *eth_hdr = (struct ether_header *)q_pkt->packet;
+				struct ether_header *eth_hdr = (void *)p_pkt->packet;
 				memcpy(eth_hdr->ether_dhost, mac, ETH_ALEN);
 				iface_send_packet(p_req->iface, p_pkt->packet, p_pkt->len);
 
