@@ -5,7 +5,7 @@ all: $(TARGET)
 CC = gcc
 LD = gcc
 
-CFLAGS = -g -Wall -Iinclude
+CFLAGS = -g -Wall -Iinclude -O2
 LDFLAGS = -L.
 
 LIBS = 

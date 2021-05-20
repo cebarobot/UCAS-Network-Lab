@@ -6,7 +6,6 @@
 #include <sys/time.h>
 #include <time.h>
 
-const char * table_filename = "forwarding-table.txt";
 struct TrieNode * table_root;
 
 #define FORW_TABLE_SIZE 700000
@@ -37,30 +36,56 @@ static inline long diff_us(struct timeval * tv1, struct timeval * tv2) {
     return (((tv2->tv_sec - tv1->tv_sec) * 1000000) + (tv2->tv_usec - tv1->tv_usec));
 }
 
-int main() {
-    read_all_data(table_filename);
+int main(int argc, char *argv[]) {
+    // int pppp = 32;
+    // uint32_t ip;
+    // sscanf("5.34.183.151", IP_FMT, IP_SCAN_STR(ip));
+    // printf("0x%08x\n", ( ~ 0U ) >> (pppp) );
+    // ip = PREFIX_OF(ip, pppp);
+    // printf(IP_FMT "\n", IP_FMT_STR(ip));
+    // return 0;
+    if (argc < 3) {
+        return -1;
+    }
+    unsigned opt = 0;
+    sscanf(argv[1], "%u", &opt);
+
+    read_all_data(argv[2]);
 
     table_root = trie_init();
     for (int i = 0; i < table_size; i++) {
-        trie_insert(table_root, ip_table[i], prefix_table[i], port_table[i]);
+        if (BIT_OF(opt, 3)) {
+            trie_insert_compress(table_root, ip_table[i], prefix_table[i], port_table[i]);
+        } else {
+            trie_insert(table_root, ip_table[i], prefix_table[i], port_table[i]);
+        }
     }
+    
+    if (BIT_OF(opt, 0)) {
+        print_trie(table_root);
+    }
+
     struct timeval tv1, tv2;
     int res_port = 0;
 
     gettimeofday(&tv1, NULL);
     for (int i = 0; i < table_size; i++) {
         res_port = trie_lookup(table_root, ip_table[i]);
-        // printf("%d\n", res_port);
+        
+        // if (BIT_OF(opt, 1)) {
+        //     printf("%d\n", res_port);
+        // }
     }
     gettimeofday(&tv2, NULL);
 
     long total_time = diff_us(&tv1, &tv2);
 
-    printf("mem: %lu Bytes\n", memory_measure);
-    printf("time: %ld us\n", total_time);
-    printf("table size: %d\n", table_size);
-    printf("time per lookup: %f us\n", (double)total_time / table_size);
-
+    if (BIT_OF(opt, 2)) {
+        printf("mem: %lu Bytes\n", memory_measure);
+        printf("time: %ld us\n", total_time);
+        printf("table size: %d\n", table_size);
+        printf("time per lookup: %f us\n", (double)total_time / table_size);
+    }
     
     // print_trie(table_root);
 

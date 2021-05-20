@@ -14,13 +14,14 @@ struct TrieNode {
     // route info
     uint32_t ip;
     uint32_t prefix;
-    bool valid;
+    bool match;
     int port;
 };
 
 struct TrieNode * trie_init();
 int trie_lookup(struct TrieNode * root, uint32_t ip);
 void trie_insert(struct TrieNode * root, uint32_t ip, uint32_t prefix, int port);
+void trie_insert_compress(struct TrieNode * root, uint32_t ip, uint32_t prefix, int port);
 
 void print_trie(struct TrieNode * root);
 

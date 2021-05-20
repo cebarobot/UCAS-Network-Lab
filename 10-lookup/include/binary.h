@@ -3,10 +3,10 @@
 
 #define ALL_ONE         ( ~ 0U )
 
-#define PREFIX_ZERO(i)  ( ALL_ONE >> (i) )
+#define PREFIX_ZERO(i)  ( (i) >= 32 ? 0U : (ALL_ONE >> (i)) )
 #define PREFIX_ONE(i)   ( ~ PREFIX_ZERO(i) )
 
-#define SUFFIX_ZERO(i)  ( ALL_ONE << (i) )
+#define SUFFIX_ZERO(i)  ( (i) >= 32 ? 0U : (ALL_ONE << (i)) )
 #define SUFFIX_ONE(i)   ( ~ SUFFIX_ZERO(i) )
 
 #define PREFIX_OF(n, i) ( n & PREFIX_ONE(i) )
