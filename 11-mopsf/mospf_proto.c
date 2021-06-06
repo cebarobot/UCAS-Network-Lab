@@ -47,7 +47,7 @@ int mospf_prepare_hello(char ** pkt, iface_info_t * iface) {
 	ip_init_hdr(ip_hdr, iface->ip, MOSPF_ALLSPFRouters, IP_BASE_HDR_SIZE + MOSPF_HDR_SIZE + MOSPF_HELLO_SIZE, IPPROTO_MOSPF);
 	ip_hdr->ttl = 1;	// ttl of ip packets sent to local network control block should always be 1
 
-	mospf_init_hdr(pkt_hdr, MOSPF_TYPE_HELLO, MOSPF_HDR_SIZE + MOSPF_HELLO_SIZE, iface->ip, instance->area_id);
+	mospf_init_hdr(pkt_hdr, MOSPF_TYPE_HELLO, MOSPF_HDR_SIZE + MOSPF_HELLO_SIZE, instance->router_id, instance->area_id);
 
 	mospf_init_hello(pkt_hello, iface->mask);
 
