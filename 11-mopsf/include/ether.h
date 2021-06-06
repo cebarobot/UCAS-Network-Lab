@@ -22,4 +22,7 @@ struct ether_header {
 #define ETHER_STRING "%02x:%02x:%02x:%02x:%02x:%02x"
 #define ETHER_FMT(m) m[0],m[1],m[2],m[3],m[4],m[5]
 
+#define mac_assign(d, a0, a1, a2, a3, a4, a5) \
+	d[0] = a0, d[1] = a1, d[2] = a2, d[3] = a3, d[4] = a4, d[5] = a5
+
 #endif

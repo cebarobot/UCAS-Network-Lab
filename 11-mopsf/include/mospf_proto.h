@@ -3,6 +3,7 @@
 
 #include "types.h"
 #include "checksum.h"
+#include "base.h"
 
 #include <arpa/inet.h>
 
@@ -65,5 +66,7 @@ static inline u16 mospf_checksum(struct mospf_hdr *mospf)
 void mospf_init_hdr(struct mospf_hdr *mospf, u8 type, u16 len, u32 rid, u32 aid);
 void mospf_init_hello(struct mospf_hello *hello, u32 mask);
 void mospf_init_lsu(struct mospf_lsu *lsu, u32 nadv);
+
+int mospf_prepare_hello(char ** pkt, iface_info_t * iface);
 
 #endif

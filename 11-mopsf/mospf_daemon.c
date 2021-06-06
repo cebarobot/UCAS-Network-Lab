@@ -53,13 +53,27 @@ void mospf_run()
 
 void *sending_mospf_hello_thread(void *param)
 {
+	// TODO:
 	fprintf(stdout, "TODO: send mOSPF Hello message periodically.\n");
+
+	while (1) {
+		sleep(MOSPF_DEFAULT_HELLOINT);
+		time_t now = time(NULL);
+
+		iface_info_t *iface = NULL;
+		list_for_each_entry(iface, &instance->iface_list, list) {
+			char * pkt = NULL;
+			int pkt_len = mospf_prepare_hello(&pkt, iface);
+			iface_send_packet(iface, pkt, pkt_len);
+		}
+	}
 
 	return NULL;
 }
 
 void *checking_nbr_thread(void *param)
 {
+	// TODO:
 	fprintf(stdout, "TODO: neighbor list timeout operation.\n");
 
 	return NULL;
@@ -67,6 +81,7 @@ void *checking_nbr_thread(void *param)
 
 void *checking_database_thread(void *param)
 {
+	// TODO:
 	fprintf(stdout, "TODO: link state database timeout operation.\n");
 
 	return NULL;
@@ -74,11 +89,14 @@ void *checking_database_thread(void *param)
 
 void handle_mospf_hello(iface_info_t *iface, const char *packet, int len)
 {
+	// TODO:
 	fprintf(stdout, "TODO: handle mOSPF Hello message.\n");
+
 }
 
 void *sending_mospf_lsu_thread(void *param)
 {
+	// TODO:
 	fprintf(stdout, "TODO: send mOSPF LSU message periodically.\n");
 
 	return NULL;
@@ -86,7 +104,9 @@ void *sending_mospf_lsu_thread(void *param)
 
 void handle_mospf_lsu(iface_info_t *iface, char *packet, int len)
 {
+	// TODO:
 	fprintf(stdout, "TODO: handle mOSPF LSU message.\n");
+
 }
 
 void handle_mospf_packet(iface_info_t *iface, char *packet, int len)
