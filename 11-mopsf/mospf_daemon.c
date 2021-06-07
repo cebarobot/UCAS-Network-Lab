@@ -16,10 +16,12 @@
 extern ustack_t *instance;
 
 pthread_mutex_t mospf_lock;
+pthread_cond_t lsu_send_cond;
 
 void mospf_init()
 {
 	pthread_mutex_init(&mospf_lock, NULL);
+	pthread_cond_init(&lsu_send_cond, NULL);
 
 	instance->area_id = 0;
 	// get the ip address of the first interface
@@ -65,7 +67,7 @@ void *sending_mospf_hello_thread(void *param)
 		iface_info_t *iface = NULL;
 		list_for_each_entry(iface, &instance->iface_list, list) {
 			char * pkt = NULL;
-			int pkt_len = mospf_prepare_hello(&pkt, iface);
+			int pkt_len = mospf_prepare_hello_pkt(&pkt, iface);
 			iface_send_packet(iface, pkt, pkt_len);
 		}
 	}
@@ -90,7 +92,8 @@ void *checking_nbr_thread(void *param)
 				if (nbr_p->alive <= 0) {
 					list_delete_entry(&nbr_p->list);
 					iface->num_nbr -= 1;
-					// TODO: update database & send lsu;
+
+					pthread_cond_signal(&lsu_send_cond);	// trigger lsu send
 				}
 			}
 		}
@@ -115,7 +118,7 @@ void handle_mospf_hello(iface_info_t *iface, const char *packet, int len)
 	fprintf(stdout, "TODO: handle mOSPF Hello message.\n");
 
 	struct ether_header * eth_hdr = (void *) packet;
-	struct iphdr * ip_hdr = (void *) (packet + ETHER_HDR_SIZE);
+	struct iphdr * ip_hdr = packet_to_ip_hdr(packet);
 	struct mospf_hdr * pkt_hdr = (void *) IP_DATA(ip_hdr);
 	struct mospf_hello * pkt_hello = (void *) (IP_DATA(ip_hdr) + MOSPF_HDR_SIZE);
 
@@ -138,6 +141,7 @@ void handle_mospf_hello(iface_info_t *iface, const char *packet, int len)
 		nbr_match->nbr_id = mospf_rid;
 
 		iface->num_nbr += 1;
+		pthread_cond_signal(&lsu_send_cond);	// trigger lsu send
 	}
 
 	nbr_match->alive = 3 * iface->helloint;
@@ -151,7 +155,38 @@ void *sending_mospf_lsu_thread(void *param)
 {
 	// TODO:
 	fprintf(stdout, "TODO: send mOSPF LSU message periodically.\n");
+	pthread_mutex_lock(&mospf_lock);
 
+	while (1) {
+		struct timespec to_time;
+		clock_gettime(CLOCK_REALTIME, &to_time);
+		to_time.tv_sec += instance->lsuint;
+		pthread_cond_timedwait(&lsu_send_cond, &mospf_lock, &to_time);
+
+		char * lsu_msg = NULL;
+		int lsu_msg_len = mospf_prepare_lsu_msg(&lsu_msg);
+		
+		iface_info_t * iface = NULL;
+		list_for_each_entry(iface, &instance->iface_list, list) {
+			mospf_nbr_t * nbr_p = NULL, * nbr_q = NULL;
+			list_for_each_entry_safe(nbr_p, nbr_q, &iface->nbr_list, list) {
+				int lsu_pkt_len = ETHER_HDR_SIZE + IP_BASE_HDR_SIZE + lsu_msg_len;
+				char * lsu_pkt = malloc(lsu_pkt_len);
+				struct ether_header * eth_hdr = (void *) lsu_pkt;
+				struct iphdr * ip_hdr = packet_to_ip_hdr(lsu_pkt);
+				char * pkt_data = IP_BASE_DATA(ip_hdr);
+
+				ip_init_hdr(ip_hdr, iface->ip, nbr_p->nbr_ip, IP_BASE_HDR_SIZE + lsu_msg_len, IPPROTO_MOSPF);
+
+				memcpy(pkt_data, lsu_msg, lsu_msg_len);
+
+				ip_send_packet(lsu_pkt, lsu_pkt_len);
+			}
+		}
+		instance->sequence_num += 1;
+	}
+
+	pthread_mutex_unlock(&mospf_lock);
 	return NULL;
 }
 

@@ -45,9 +45,10 @@ struct iphdr {
 #define DEFAULT_TTL 64		// default TTL value in ip header
 #define IP_DF	0x4000		// do not fragment
 
-#define IP_BASE_HDR_SIZE sizeof(struct iphdr)
-#define IP_HDR_SIZE(hdr) (hdr->ihl * 4)
-#define IP_DATA(hdr)	((char *)hdr + IP_HDR_SIZE(hdr))
+#define IP_BASE_HDR_SIZE    sizeof(struct iphdr)
+#define IP_HDR_SIZE(hdr)    (hdr->ihl * 4)
+#define IP_DATA(hdr)	    ((char *)hdr + IP_HDR_SIZE(hdr))
+#define IP_BASE_DATA(hdr)	((char *)hdr + IP_BASE_HDR_SIZE)
 
 // lazy way to print ip address 'ip' (a u32 variable) as follows:
 // fprintf(stdout, "the ip address is "IP_FMT".\n", HOST_IP_FMT_STR(ip));
