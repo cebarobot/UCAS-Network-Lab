@@ -51,6 +51,8 @@ int mospf_prepare_hello(char ** pkt, iface_info_t * iface) {
 
 	mospf_init_hello(pkt_hello, iface->mask);
 
+	pkt_hdr->checksum = mospf_checksum(pkt_hdr);
+
 	*pkt = hello_pkt;
 	return len;
 }

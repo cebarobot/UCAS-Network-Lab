@@ -83,6 +83,9 @@ if __name__ == '__main__':
         r.cmd('./scripts/disable_ip_forward.sh')
         r.cmd('./scripts/disable_ipv6.sh')
 
+    for r in (r1, r2, r3, r4):
+        r.cmd('./mospfd > ' + r.name + '.txt &')
+
     net.start()
     CLI(net)
     net.stop()
