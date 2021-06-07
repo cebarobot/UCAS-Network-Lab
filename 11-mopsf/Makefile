@@ -12,7 +12,7 @@ LIBS = -lpthread
 
 HDRS = ./include/*.h
 
-SRCS = arp.c arpcache.c device_internal.c icmp.c ip_base.c ip.c main.c mospf_database.c mospf_daemon.c mospf_proto.c rtable.c rtable_internal.c 
+SRCS = arp.c arpcache.c device_internal.c icmp.c ip_base.c ip.c main.c mospf_database.c mospf_daemon.c mospf_proto.c mospf_nbr.c rtable.c rtable_internal.c 
 OBJS = $(patsubst %.c,%.o,$(SRCS))
 
 $(OBJS) : %.o : %.c include/*.h

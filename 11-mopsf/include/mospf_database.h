@@ -18,5 +18,8 @@ typedef struct {
 } mospf_db_entry_t;
 
 void init_mospf_db();
+int aging_mospf_db();
+int update_mospf_db(const char * mospf_lsu_msg);
+void print_mospf_db();
 
 #endif

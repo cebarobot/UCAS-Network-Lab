@@ -13,4 +13,9 @@ typedef struct {
 	u8		alive;			// alive for #(seconds)
 } mospf_nbr_t;
 
+int aging_mospf_nbr();
+int update_mospf_nbr(iface_info_t *iface, const char *packet);
+
+void print_nbr_list();
+
 #endif

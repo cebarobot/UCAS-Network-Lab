@@ -28,6 +28,7 @@ void mospf_init_hello(struct mospf_hello *hello, u32 mask)
 
 void mospf_init_lsu(struct mospf_lsu *lsu, u32 nadv)
 {
+	printf("mospf_init_lsu: seq: %d\n", instance->sequence_num);
 	lsu->seq = htons(instance->sequence_num);
 	lsu->unused = 0;
 	lsu->ttl = MOSPF_MAX_LSU_TTL;

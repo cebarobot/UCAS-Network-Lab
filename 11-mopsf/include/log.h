@@ -19,7 +19,7 @@ static const char *log_level_str[] = { "DEBUG", "INFO", "WARNING", "ERROR" };
 				level_str, ##__VA_ARGS__);
 #else
 	#define log_it(fmt, level_str, ...) \
-		fprintf(stderr, "%s: " fmt "\n", level_str, ##__VA_ARGS__);
+		fprintf(stdout, "%s: " fmt "\n", level_str, ##__VA_ARGS__);
 #endif
 
 #define log(level, fmt, ...) \
