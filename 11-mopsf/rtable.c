@@ -4,12 +4,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <pthread.h>
 
 struct list_head rtable;
+pthread_mutex_t rtable_lock;
 
 void init_rtable()
 {
 	init_list_head(&rtable);
+	pthread_mutex_init(&rtable_lock, NULL);
 }
 
 rt_entry_t *new_rt_entry(u32 dest, u32 mask, u32 gw, iface_info_t *iface)
@@ -36,6 +39,17 @@ void remove_rt_entry(rt_entry_t *entry)
 {
 	list_delete_entry(&entry->list);
 	free(entry);
+}
+
+void try_add_new_rt_entry(u32 dest, u32 mask, u32 gw, iface_info_t *iface) {
+	rt_entry_t * entry_p = NULL;
+	list_for_each_entry(entry_p, &rtable, list) {
+		if (entry_p->dest == dest && entry_p->mask == mask) {
+			return;
+		}
+	}
+	rt_entry_t * new_entry = new_rt_entry(dest, mask, gw, iface);
+	add_rt_entry(new_entry);
 }
 
 void clear_rtable()

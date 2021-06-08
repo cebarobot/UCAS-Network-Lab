@@ -21,6 +21,7 @@ typedef struct {
 } rt_entry_t;
 
 extern struct list_head rtable;
+extern pthread_mutex_t rtable_lock;
 
 void init_rtable();
 void load_static_rtable();
@@ -29,6 +30,7 @@ void add_rt_entry(rt_entry_t *entry);
 void remove_rt_entry(rt_entry_t *entry);
 void print_rtable();
 rt_entry_t *new_rt_entry(u32 dest, u32 mask, u32 gw, iface_info_t *iface);
+void try_add_new_rt_entry(u32 dest, u32 mask, u32 gw, iface_info_t *iface);
 
 rt_entry_t *longest_prefix_match(u32 ip);
 u32 get_next_hop(rt_entry_t *entry, u32 dst);

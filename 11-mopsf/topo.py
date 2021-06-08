@@ -84,7 +84,7 @@ if __name__ == '__main__':
         r.cmd('./scripts/disable_ipv6.sh')
 
     for r in (r1, r2, r3, r4):
-        r.cmd('stdbuf -oL ./mospfd > ' + r.name + '.txt &')
+        r.cmd('stdbuf -oL ./mospfd > ' + r.name + '.txt 2> ' + r.name + '_err.txt &')
         # r.cmd('stdbuf -oL ./mospfd-reference > ' + r.name + '.txt &')
 
     net.start()

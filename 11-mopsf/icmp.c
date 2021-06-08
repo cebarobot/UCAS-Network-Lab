@@ -7,6 +7,7 @@
 #include "log.h"
 
 #include <stdlib.h>
+#include <pthread.h>
 
 // send icmp packet
 void icmp_send_packet(const char *in_pkt, int len, u8 type, u8 code)
@@ -57,13 +58,18 @@ void icmp_send_packet(const char *in_pkt, int len, u8 type, u8 code)
 	}
 	else {
 		// ICMP_DEST_UNREACH or ICMP_TIME_EXCEEDED
+		pthread_mutex_lock(&rtable_lock);
+
 		rt_entry_t *entry = longest_prefix_match(daddr);
 		if (!entry) {
 			log(ERROR, "could not find route entry when sending icmp packet, impossible.");
 			free(out_pkt);
+			pthread_mutex_unlock(&rtable_lock);
 			return ;
 		}
 		saddr = entry->iface->ip;
+
+		pthread_mutex_unlock(&rtable_lock);
 	}
 
 	int out_ip_len = IP_BASE_HDR_SIZE + icmp_len;

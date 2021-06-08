@@ -63,16 +63,22 @@ void ip_forward_packet(u32 ip_dst, char *packet, int len)
 
 	hdr->ttl -= 1;
 	hdr->checksum = ip_checksum(hdr);
+
+	pthread_mutex_lock(&rtable_lock);
+
 	rt_entry_t *entry = longest_prefix_match(ip_dst);
 	if (!entry) {
 		icmp_send_packet(packet, len, ICMP_DEST_UNREACH, ICMP_NET_UNREACH);
 		free(packet);
+		pthread_mutex_unlock(&rtable_lock);
 		return ;
 	}
 
 	u32 next_hop = get_next_hop(entry, ip_dst);
-
 	iface_info_t *iface = entry->iface;
+
+	pthread_mutex_unlock(&rtable_lock);
+
 
 	iface_send_packet_by_arp(iface, next_hop, packet, len);
 }
@@ -85,16 +91,22 @@ void ip_send_packet(char *packet, int len)
 {
 	struct iphdr *ip = packet_to_ip_hdr(packet);
 	u32 dst = ntohl(ip->daddr);
+
+	pthread_mutex_lock(&rtable_lock);
+
 	rt_entry_t *entry = longest_prefix_match(dst);
 	if (!entry) {
 		log(ERROR, "Could not find forwarding rule for IP (dst:"IP_FMT") packet.", 
 				HOST_IP_FMT_STR(dst));
 		free(packet);
+		pthread_mutex_unlock(&rtable_lock);
 		return ;
 	}
 
 	u32 next_hop = get_next_hop(entry, dst);
 	iface_info_t *iface = entry->iface;
+
+	pthread_mutex_unlock(&rtable_lock);
 
 	iface_send_packet_by_arp(iface, next_hop, packet, len);
 }
