@@ -7,6 +7,7 @@
 #include "mospf_proto.h"
 
 extern struct list_head mospf_db;
+extern int mospf_db_cnt;
 
 typedef struct {
 	struct list_head list;

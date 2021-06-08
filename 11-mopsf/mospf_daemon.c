@@ -2,6 +2,7 @@
 #include "mospf_proto.h"
 #include "mospf_database.h"
 #include "mospf_nbr.h"
+#include "mospf_route.h"
 
 #include "ip.h"
 
@@ -104,7 +105,7 @@ void *checking_database_thread(void *param)
 
 		if (aging_mospf_db()) {
 			// TODO: upate rtable
-			printf("aging db\n");
+			update_rtable_from_database();
 		}
 		print_mospf_db();
 
@@ -207,6 +208,7 @@ void handle_mospf_lsu(iface_info_t *iface, char *packet, int len)
 		}
 
 		// TODO: update rtable
+		update_rtable_from_database();
 	}
 	print_mospf_db();
 

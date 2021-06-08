@@ -8,10 +8,12 @@
 #include <arpa/inet.h>
 
 struct list_head mospf_db;
+int mospf_db_cnt;
 
 void init_mospf_db()
 {
 	init_list_head(&mospf_db);
+	mospf_db_cnt = 0;
 }
 
 int aging_mospf_db() {
@@ -24,6 +26,8 @@ int aging_mospf_db() {
 			list_delete_entry(&db_p->list);
 			free(db_p->array);
 			free(db_p);
+
+			mospf_db_cnt -= 1;
 			db_changed = 1;
 		}
 	}
@@ -52,6 +56,8 @@ int update_mospf_db(const char * mospf_lsu_msg) {
 		db_match = malloc(sizeof(mospf_db_entry_t));
 		list_add_tail(&db_match->list, &mospf_db);
 		db_match->rid = mospf_rid;
+		
+		mospf_db_cnt += 1;
 	} else if (mospf_seq > db_match->seq) {
 		if (db_match->array) {
 			free(db_match->array);
