@@ -65,8 +65,14 @@ struct iphdr {
 
 #define NET_IP_FMT_STR(ip)	BE_IP_FMT_STR(ip)
 
+#define LE_IP_SCAN_STR(ip)  ((u8 *)&(ip) + 3), \
+					        ((u8 *)&(ip) + 2), \
+ 						    ((u8 *)&(ip) + 1), \
+					        ((u8 *)&(ip) + 0)
+
 #if __BYTE_ORDER == __LITTLE_ENDIAN
 #	define HOST_IP_FMT_STR(ip)	LE_IP_FMT_STR(ip)
+#	define HOST_IP_SCAN_STR(ip)	LE_IP_SCAN_STR(ip)
 #elif __BYTE_ORDER == __BIG_ENDIAN
 #	define HOST_IP_FMT_STR(ip)	BE_IP_FMT_STR(ip)
 #endif

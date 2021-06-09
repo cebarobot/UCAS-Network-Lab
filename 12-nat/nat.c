@@ -7,6 +7,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 #include <unistd.h>
 #include <signal.h>
 
@@ -28,6 +29,7 @@ static iface_info_t *if_name_to_iface(const char *if_name)
 // determine the direction of the packet, DIR_IN / DIR_OUT / DIR_INVALID
 static int get_packet_direction(char *packet)
 {
+	// TODO:
 	fprintf(stdout, "TODO: determine the direction of this packet.\n");
 
 	return DIR_INVALID;
@@ -37,6 +39,7 @@ static int get_packet_direction(char *packet)
 // checksum, update the statistics of the tcp connection
 void do_translation(iface_info_t *iface, char *packet, int len, int dir)
 {
+	// TODO:
 	fprintf(stdout, "TODO: do translation for this packet.\n");
 }
 
@@ -74,8 +77,9 @@ static int is_flow_finished(struct nat_connection *conn)
 void *nat_timeout()
 {
 	while (1) {
-		fprintf(stdout, "TODO: sweep finished flows periodically.\n");
 		sleep(1);
+		// TODO:
+		fprintf(stdout, "TODO: sweep finished flows periodically.\n");
 	}
 
 	return NULL;
@@ -83,7 +87,58 @@ void *nat_timeout()
 
 int parse_config(const char *filename)
 {
+	// TODO:
 	fprintf(stdout, "TODO: parse config file, including i-iface, e-iface (and dnat-rules if existing).\n");
+	FILE * conf_file = fopen(filename, "r");
+
+	if (conf_file == NULL) {
+		log(ERROR, "cannot open config file.");
+		return 1;
+	}
+
+	static char buff[100];
+	static char name[16];
+
+	printf("====config:\n");
+	while (fgets(buff, 100, conf_file)) {
+		char * pos = strchr(buff, ':');
+		if (pos == NULL) {
+			continue;
+		}
+		if (strncmp(buff, "internal-iface", pos - buff) == 0) {
+			sscanf(pos + 2, "%s", name);
+			nat.internal_iface = if_name_to_iface(name);
+			if (nat.internal_iface) {
+				printf("internal-iface: %s\n", nat.internal_iface->name);
+			}
+		} else if (strncmp(buff, "external-iface", pos - buff) == 0) {
+			sscanf(pos + 2, "%s", name);
+			nat.external_iface = if_name_to_iface(name);
+			if (nat.external_iface) {
+				printf("external-iface: %s\n", nat.external_iface->name);
+			}
+		} else if (strncmp(buff, "dnat-rules", pos - buff) == 0) {
+			u32 out_ip, in_ip;
+			u16 out_port, in_port;
+			int rs = sscanf(pos + 2, IP_FMT ":%hu %*s " IP_FMT ":%hu", 
+					HOST_IP_SCAN_STR(out_ip), &out_port, HOST_IP_SCAN_STR(in_ip), &in_port);
+			if (rs < 10) {
+				log(ERROR, "wrong format for dnat-rules");
+				continue;
+			}
+			struct dnat_rule * rule = malloc(sizeof(struct dnat_rule));
+			rule->external_ip = out_ip;
+			rule->internal_ip = in_ip;
+			rule->external_port = out_port;
+			rule->internal_port = in_port;
+			list_add_tail(&rule->list, &nat.rules);
+			printf("dnat-rules: " IP_FMT ":%hu -> " IP_FMT ":%hu\n", 
+					HOST_IP_FMT_STR(out_ip), out_port, HOST_IP_FMT_STR(in_ip), in_port);
+		} else {
+			log(DEBUG, "%s", buff);
+		}
+	}
+
 	return 0;
 }
 
@@ -109,5 +164,6 @@ void nat_init(const char *config_file)
 
 void nat_exit()
 {
+	// TODO:
 	fprintf(stdout, "TODO: release all resources allocated.\n");
 }

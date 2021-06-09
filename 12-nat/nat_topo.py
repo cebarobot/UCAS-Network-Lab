@@ -46,6 +46,9 @@ if __name__ == '__main__':
     n1.cmd('./scripts/disable_ip_forward.sh')
     n1.cmd('./scripts/disable_ipv6.sh')
 
+    # n1.cmd('stdbuf -oL ./nat exp1.conf > log.txt 2> log_err.txt &')
+    n1.cmd('stdbuf -oL ./nat exp2.conf > log.txt 2> log_err.txt &')
+
     net.start()
     CLI(net)
     net.stop()
