@@ -29,18 +29,179 @@ static iface_info_t *if_name_to_iface(const char *if_name)
 // determine the direction of the packet, DIR_IN / DIR_OUT / DIR_INVALID
 static int get_packet_direction(char *packet)
 {
-	// TODO:
 	fprintf(stdout, "TODO: determine the direction of this packet.\n");
 
+	struct iphdr * hdr = packet_to_ip_hdr(packet);
+	u32 saddr = ntohl(hdr->saddr);
+	u32 daddr = ntohl(hdr->daddr);
+	rt_entry_t * s_entry = longest_prefix_match(saddr);
+	rt_entry_t * d_entry = longest_prefix_match(daddr);
+	iface_info_t * s_iface = s_entry->iface;
+	iface_info_t * d_iface = d_entry->iface;
+	if (s_iface == nat.internal_iface && d_iface == nat.external_iface) {
+		return DIR_OUT;
+	} else if (s_iface == nat.external_iface && daddr == nat.external_iface->ip) {
+		return DIR_IN;
+	}
 	return DIR_INVALID;
+}
+
+u16 assign_external_port() {
+	for (int i = NAT_PORT_MIN; i < NAT_PORT_MAX; i++) {
+		if (nat.assigned_ports[i] == 0) {
+			nat.assigned_ports[i] = 1;
+			return i;
+		}
+	}
+	return 0;
+}
+
+u8 get_hash_ip_port(u32 ip, u16 port) {
+	ip_port_pair_t ip_port;
+	ip_port.ip = ip;
+	ip_port.port = port;
+	return hash8((void *) &ip_port, sizeof(ip_port_pair_t));
+}
+
+struct nat_mapping * lookup_nat_mapping(u32 remote_ip, u16 remote_port, u32 nat_ip, u16 nat_port, int dir) {
+	u8 hash = get_hash_ip_port(remote_ip, remote_port);
+	struct nat_mapping * pos = NULL;
+	if (dir == DIR_IN) {
+		list_for_each_entry(pos, &nat.nat_mapping_list[hash], list) {
+			if (pos->remote_ip == remote_ip && pos->remote_port && 
+				pos->external_ip == nat_ip && pos->external_port == nat_port
+			) {
+				return pos;
+			}
+		}
+	} else if (dir == DIR_OUT) {
+		list_for_each_entry(pos, &nat.nat_mapping_list[hash], list) {
+			if (pos->remote_ip == remote_ip && pos->remote_port && 
+				pos->internal_ip == nat_ip && pos->internal_port == nat_port
+			) {
+				return pos;
+			}
+		}
+	}
+	return NULL;
+}
+
+struct nat_mapping * setup_nat_mapping(u32 remote_ip, u16 remote_port, u32 nat_ip, u16 nat_port, int dir) {
+	u8 hash = get_hash_ip_port(remote_ip, remote_port);
+	if (dir == DIR_IN) {
+		// lookup dnat rule
+		struct dnat_rule * rule_p = NULL, * rule_match = NULL;
+		list_for_each_entry(rule_p, &nat.rules, list) { 
+			if (rule_p->external_ip == nat_ip && rule_p->external_port == nat_port) {
+				rule_match = rule_p;
+				break;
+			}
+		}
+		if (!rule_match) {
+			return NULL;
+		}
+
+		struct nat_mapping * new_mapping = malloc(sizeof(struct nat_mapping));
+		bzero(new_mapping, sizeof(struct nat_mapping));
+		new_mapping->external_ip = rule_match->external_ip;
+		new_mapping->external_port = rule_match->external_port;
+		new_mapping->internal_ip = rule_match->internal_ip;
+		new_mapping->internal_port = rule_match->internal_port;
+		new_mapping->remote_ip = remote_ip;
+		new_mapping->remote_port = remote_port;
+		
+		list_add_tail(&new_mapping->list, &nat.nat_mapping_list[hash]);
+		return new_mapping;
+	} else if (dir == DIR_OUT) {
+		// assign external port
+		struct nat_mapping * new_mapping = malloc(sizeof(struct nat_mapping));
+		bzero(new_mapping, sizeof(struct nat_mapping));
+		new_mapping->external_ip = nat.external_iface->ip;
+		new_mapping->external_port = assign_external_port();
+		new_mapping->internal_ip = nat_ip;
+		new_mapping->internal_port = nat_port;
+		new_mapping->remote_ip = remote_ip;
+		new_mapping->remote_port = remote_port;
+
+		list_add_tail(&new_mapping->list, &nat.nat_mapping_list[hash]);
+		return new_mapping;
+	}
+	return NULL;
 }
 
 // do translation for the packet: replace the ip/port, recalculate ip & tcp
 // checksum, update the statistics of the tcp connection
 void do_translation(iface_info_t *iface, char *packet, int len, int dir)
 {
-	// TODO:
 	fprintf(stdout, "TODO: do translation for this packet.\n");
+	
+	struct iphdr * ip_hdr = packet_to_ip_hdr(packet);
+	struct tcphdr * tcp_hdr = (void *) IP_DATA(ip_hdr);
+	u32 pkt_seq_end = tcp_seq_end(ip_hdr, tcp_hdr);
+	u32 pkt_ack = ntohl(tcp_hdr->ack);
+
+	u32 remote_ip, nat_ip;
+	u16 remote_port, nat_port;
+	if (dir == DIR_IN) {
+		remote_ip = ntohl(ip_hdr->saddr);
+		remote_port = ntohs(tcp_hdr->sport);
+		nat_ip = ntohl(ip_hdr->daddr);
+		nat_port = ntohs(tcp_hdr->dport);
+	} else if (dir == DIR_OUT) {
+		remote_ip = ntohl(ip_hdr->daddr);
+		remote_port = ntohs(tcp_hdr->dport);
+		nat_ip = ntohl(ip_hdr->saddr);
+		nat_port = ntohs(tcp_hdr->sport);
+	}
+
+	struct nat_mapping * mapping_entry = 
+			lookup_nat_mapping(remote_ip, remote_port, nat_ip, nat_port, dir);
+	if (!mapping_entry && (tcp_hdr->flags & TCP_SYN)) {
+		mapping_entry = setup_nat_mapping(remote_ip, remote_port, nat_ip, nat_port, dir);
+	}
+	if (!mapping_entry) {
+		icmp_send_packet(packet, len, ICMP_DEST_UNREACH, ICMP_HOST_UNREACH);
+		free(packet);
+		return;
+	}
+
+	u32 * conn_seq_end = NULL;
+	u32 * conn_ack = NULL;
+	u32 * conn_fin = NULL;
+
+	if (dir == DIR_IN) {
+		ip_hdr->daddr = htonl(mapping_entry->internal_ip);
+		tcp_hdr->dport = htons(mapping_entry->internal_port);
+
+		if (pkt_seq_end > mapping_entry->conn.external_seq_end) {
+			mapping_entry->conn.external_seq_end = pkt_seq_end;
+		}
+		if (pkt_ack > mapping_entry->conn.external_fin) {
+			mapping_entry->conn.external_ack = pkt_ack;
+		}
+		if (tcp_hdr->flags & TCP_FIN) {
+			mapping_entry->conn.external_fin = 1;
+		}
+	} else if (dir == DIR_OUT) {
+		ip_hdr->saddr = htonl(mapping_entry->external_ip);
+		tcp_hdr->sport = htons(mapping_entry->external_port);
+
+		if (pkt_seq_end > mapping_entry->conn.internal_seq_end) {
+			mapping_entry->conn.internal_seq_end = pkt_seq_end;
+		}
+		if (pkt_ack > mapping_entry->conn.internal_fin) {
+			mapping_entry->conn.internal_ack = pkt_ack;
+		}
+		if (tcp_hdr->flags & TCP_FIN) {
+			mapping_entry->conn.internal_fin = 1;
+		}
+	}
+	mapping_entry->update_time = time(NULL);
+
+	ip_hdr->checksum = ip_checksum(ip_hdr);
+	tcp_hdr->checksum = tcp_checksum(ip_hdr, tcp_hdr);
+
+	ip_forward_packet(htonl(ip_hdr->daddr), packet, len);
 }
 
 void nat_translate_packet(iface_info_t *iface, char *packet, int len)
@@ -80,6 +241,17 @@ void *nat_timeout()
 		sleep(1);
 		// TODO:
 		fprintf(stdout, "TODO: sweep finished flows periodically.\n");
+		time_t now = time(NULL);
+		for (int i = 0; i < HASH_8BITS; i++) {
+			struct nat_mapping * entry = NULL, * entry_q = NULL;
+			list_for_each_entry_safe(entry, entry_q, &nat.nat_mapping_list[i], list) {
+				if (is_flow_finished(&entry->conn) || now - entry->update_time > TCP_ESTABLISHED_TIMEOUT) {
+					log(DEBUG, "sweep a nat");
+					list_delete_entry(&entry->list);
+					free(entry);
+				}
+			}
+		}
 	}
 
 	return NULL;
@@ -87,7 +259,6 @@ void *nat_timeout()
 
 int parse_config(const char *filename)
 {
-	// TODO:
 	fprintf(stdout, "TODO: parse config file, including i-iface, e-iface (and dnat-rules if existing).\n");
 	FILE * conf_file = fopen(filename, "r");
 
@@ -164,6 +335,17 @@ void nat_init(const char *config_file)
 
 void nat_exit()
 {
-	// TODO:
 	fprintf(stdout, "TODO: release all resources allocated.\n");
+	pthread_mutex_lock(&nat.lock);
+
+	for (int i = 0; i < HASH_8BITS; i++) {
+		struct nat_mapping * entry = NULL, * entry_q = NULL;
+		list_for_each_entry_safe(entry, entry_q, &nat.nat_mapping_list[i], list) {
+			list_delete_entry(&entry->list);
+			free(entry);
+		}
+	}
+
+	pthread_kill(nat.thread, SIGTERM);
+	pthread_mutex_unlock(&nat.lock);
 }

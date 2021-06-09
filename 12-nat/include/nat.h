@@ -20,6 +20,11 @@
 // DIR_OUT is direction that packet from private network to public network
 enum packet_dir { DIR_IN = 1, DIR_OUT, DIR_INVALID };
 
+typedef struct {
+	u32 ip;
+	u16 port;
+} ip_port_pair_t;
+
 struct nat_connection {
 	u8 internal_fin;		// indicates whether received fin packet from inner node
 	u8 external_fin;		// indicates whether received fin packet from outer node

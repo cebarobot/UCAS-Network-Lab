@@ -95,5 +95,6 @@ static inline struct iphdr *packet_to_ip_hdr(const char *packet)
 void ip_init_hdr(struct iphdr *ip, u32 saddr, u32 daddr, u16 len, u8 proto);
 void handle_ip_packet(iface_info_t *iface, char *packet, int len);
 void ip_send_packet(char *packet, int len);
+void ip_forward_packet(u32 ip_dst, char *packet, int len);
 
 #endif
