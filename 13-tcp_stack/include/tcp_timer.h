@@ -7,6 +7,9 @@
 
 struct tcp_timer {
 	int type;	// time-wait: 0		retrans: 1
+#define TIMER_TYPE_TIME_WAIT 0
+#define TIMER_TYPE_RETRANS 1
+
 	int timeout;	// in micro second
 	struct list_head list;
 	int enable;

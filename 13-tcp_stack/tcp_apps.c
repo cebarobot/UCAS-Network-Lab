@@ -34,6 +34,8 @@ void *tcp_server(void *arg)
 
 	tcp_sock_close(csk);
 	
+	tcp_sock_close(tsk);
+	
 	return NULL;
 }
 

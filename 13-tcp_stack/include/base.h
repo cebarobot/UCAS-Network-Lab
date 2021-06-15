@@ -47,5 +47,5 @@ typedef struct {
 
 void init_ustack();
 iface_info_t *fd_to_iface(int fd);
-void iface_send_packet(iface_info_t *iface, const char *packet, int len);
+void iface_send_packet(iface_info_t *iface, char *packet, int len);
 #endif

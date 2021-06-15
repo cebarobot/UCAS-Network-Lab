@@ -46,8 +46,8 @@ struct tcphdr {
 // control block, representing all the necesary information of a packet
 struct tcp_cb {
 	u32 saddr;		// source addr of the packet
-	u32 daddr;		// source port of the packet
-	u16 sport;		// dest addr of the packet
+	u32 daddr;		// dest addr of the packet
+	u16 sport;		// source port of the packet
 	u16 dport;		// dest port of the packet
 	u32 seq;		// sequence number in tcp header
 	u32 seq_end;		// seq + (SYN|FIN) + len(payload)
