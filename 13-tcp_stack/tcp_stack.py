@@ -27,6 +27,7 @@ def client(ip, port):
     sleep(1)
     
     s.close()
+    print("closed")
 
 if __name__ == '__main__':
     if sys.argv[1] == 'server':

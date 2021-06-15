@@ -1,6 +1,7 @@
 #include "tcp.h"
 #include "tcp_timer.h"
 #include "tcp_sock.h"
+#include "log.h"
 
 #include <stdio.h>
 #include <unistd.h>
@@ -60,6 +61,10 @@ void tcp_set_timewait_timer(struct tcp_sock *tsk)
 
 	// refer to this sock in timewait list
 	tsk->ref_cnt += 1;
+	log(DEBUG, "insert " IP_FMT ":%hu <-> " IP_FMT ":%hu to timewait, ref_cnt += 1", 
+			HOST_IP_FMT_STR(tsk->sk_sip), tsk->sk_sport,
+			HOST_IP_FMT_STR(tsk->sk_dip), tsk->sk_dport);
+
 	pthread_mutex_lock(&timer_list_lock);
 	list_add_tail(&tsk->timewait.list, &timer_list);
 	pthread_mutex_unlock(&timer_list_lock);

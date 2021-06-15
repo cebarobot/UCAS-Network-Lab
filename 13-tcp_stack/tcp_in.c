@@ -70,6 +70,7 @@ void tcp_process(struct tcp_sock *tsk, struct tcp_cb *cb, char *packet)
 			// alloc child sock
 			struct tcp_sock * child_tsk = alloc_tcp_sock();
 			child_tsk->parent = tsk;
+			tsk->ref_cnt += 1;
 
 			child_tsk->local.ip = cb->daddr;
 			child_tsk->local.port = cb->dport;
@@ -78,7 +79,7 @@ void tcp_process(struct tcp_sock *tsk, struct tcp_cb *cb, char *packet)
 
 			child_tsk->iss = tcp_new_iss();
 			child_tsk->snd_nxt = child_tsk->iss;
-			child_tsk->rcv_nxt = cb->seq_end + 1;
+			child_tsk->rcv_nxt = cb->seq_end;
 
 			tcp_set_state(child_tsk, TCP_SYN_RECV);
 
@@ -93,20 +94,35 @@ void tcp_process(struct tcp_sock *tsk, struct tcp_cb *cb, char *packet)
 			// send SYN + ACK
 			tcp_send_control_packet(child_tsk, TCP_SYN | TCP_ACK);
 		}
+
 	} else if (tsk->state == TCP_SYN_SENT) {
 		if (cb->flags == (TCP_SYN | TCP_ACK)) {
+			tsk->rcv_nxt = cb->seq_end;
+			tsk->snd_una = cb->ack;
+
 			tcp_set_state(tsk, TCP_ESTABLISHED);
+
 			// send ACK;
 			tcp_send_control_packet(tsk, TCP_ACK);
 			
 			wake_up(tsk->wait_connect);
+
 		} else if (cb->flags == TCP_SYN) {
+			tsk->rcv_nxt = cb->seq_end;
+
 			tcp_set_state(tsk, TCP_SYN_RECV);
 			// send SYN + ACK;
 			tcp_send_control_packet(tsk, TCP_SYN | TCP_ACK);
 		}
+
 	} else if (tsk->state == TCP_SYN_RECV) {
 		if (cb->flags == TCP_ACK) {
+			if (!is_tcp_seq_valid(tsk, cb)) {
+				return;
+			}
+			tsk->rcv_nxt = cb->seq_end;
+			tsk->snd_una = cb->ack;
+
 			if (tsk->parent) {
 				if (tcp_sock_accept_queue_full(tsk->parent)) {
 					tcp_set_state(tsk, TCP_CLOSED);
@@ -133,45 +149,115 @@ void tcp_process(struct tcp_sock *tsk, struct tcp_cb *cb, char *packet)
 				wake_up(tsk->parent->wait_connect);
 			}
 		}
+
 	} else if (tsk->state == TCP_ESTABLISHED) {
-		if (cb->flags == TCP_FIN) {
+		if (!is_tcp_seq_valid(tsk, cb)) {
+			return;
+		}
+		tsk->rcv_nxt = cb->seq_end;
+
+		if (cb->flags & TCP_ACK) {
+			tsk->snd_una = cb->ack;
+			// do something but not this stage
+		}
+
+		if (cb->flags & TCP_FIN) {
+			tsk->rcv_nxt = cb->seq_end;
 			tcp_set_state(tsk, TCP_CLOSE_WAIT);
 			// send ACK;
 			tcp_send_control_packet(tsk, TCP_ACK);
 		}
+
 	} else if (tsk->state == TCP_FIN_WAIT_1) {
 		if (cb->flags == TCP_ACK) {
+			if (!is_tcp_seq_valid(tsk, cb)) {
+				return;
+			}
+			tsk->rcv_nxt = cb->seq_end;
+			tsk->snd_una = cb->ack;
+
 			tcp_set_state(tsk, TCP_FIN_WAIT_2);
+
 		} else if (cb->flags == TCP_FIN) {
+			if (!is_tcp_seq_valid(tsk, cb)) {
+				return;
+			}
+			tsk->rcv_nxt = cb->seq_end;
+
 			tcp_set_state(tsk, TCP_CLOSING);
+
 			// send ACK;
 			tcp_send_control_packet(tsk, TCP_ACK);
+
 		} else if (cb->flags == (TCP_FIN | TCP_ACK)) {
+			if (!is_tcp_seq_valid(tsk, cb)) {
+				return;
+			}
+			tsk->rcv_nxt = cb->seq_end;
+			tsk->snd_una = cb->ack;
+
 			tcp_set_state(tsk, TCP_TIME_WAIT);
 			tcp_set_timewait_timer(tsk);
+
 			// send ACK;
 			tcp_send_control_packet(tsk, TCP_ACK);
 		}
+
 	} else if (tsk->state == TCP_FIN_WAIT_2) {
 		if (cb->flags == TCP_FIN) {
+			if (!is_tcp_seq_valid(tsk, cb)) {
+				return;
+			}
+			tsk->rcv_nxt = cb->seq_end;
+
 			tcp_set_state(tsk, TCP_TIME_WAIT);
 			tcp_set_timewait_timer(tsk);
+
+			// send ACK;
+			tcp_send_control_packet(tsk, TCP_ACK);
+
+		} else if (cb->flags == (TCP_FIN | TCP_ACK)) {
+			if (!is_tcp_seq_valid(tsk, cb)) {
+				return;
+			}
+			tsk->rcv_nxt = cb->seq_end;
+			tsk->snd_una = cb->ack;
+
+			tcp_set_state(tsk, TCP_TIME_WAIT);
+			tcp_set_timewait_timer(tsk);
+
 			// send ACK;
 			tcp_send_control_packet(tsk, TCP_ACK);
 		}
+
 	} else if (tsk->state == TCP_CLOSING) {
 		if (cb->flags == TCP_ACK) {
+			if (!is_tcp_seq_valid(tsk, cb)) {
+				return;
+			}
+			tsk->rcv_nxt = cb->seq_end;
+			tsk->snd_una = cb->ack;
+
 			tcp_set_state(tsk, TCP_TIME_WAIT);
 			tcp_set_timewait_timer(tsk);
 		}
+
 	} else if (tsk->state == TCP_TIME_WAIT) {
 		log(DEBUG, "receive a packet of a TCP_TIME_WAIT sock.");
 		// nothing to do;
+
 	} else if (tsk->state == TCP_CLOSE_WAIT) {
 		log(DEBUG, "receive a packet of a TCP_CLOSE_WAIT sock.");
 		// nothing to do;
+
 	} else if (tsk->state == TCP_LAST_ACK) {
 		if (cb->flags == TCP_ACK) {
+			if (!is_tcp_seq_valid(tsk, cb)) {
+				return;
+			}
+			tsk->rcv_nxt = cb->seq_end;
+			tsk->snd_una = cb->ack;
+
 			tcp_set_state(tsk, TCP_CLOSED);
 
 			// release the sock
@@ -180,6 +266,7 @@ void tcp_process(struct tcp_sock *tsk, struct tcp_cb *cb, char *packet)
 
 			// just leave the closed sock in accept_queue/user
 		}
+
 	} else if (tsk->state == TCP_CLOSED) {
 		log(DEBUG, "this socket is closed");
 

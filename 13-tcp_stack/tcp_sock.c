@@ -79,13 +79,18 @@ struct tcp_sock *alloc_tcp_sock()
 // used by stack
 void free_tcp_sock(struct tcp_sock *tsk)
 {
-	fprintf(stdout, "TODO: implement %s please.\n", __FUNCTION__);
+	// fprintf(stdout, "TODO: implement %s please.\n", __FUNCTION__);
 
 	tsk->ref_cnt -= 1;
 	if (tsk->ref_cnt <= 0) {
 		log(DEBUG, "Do free " IP_FMT ":%hu <-> " IP_FMT ":%hu.", 
 				HOST_IP_FMT_STR(tsk->sk_sip), tsk->sk_sport,
 				HOST_IP_FMT_STR(tsk->sk_dip), tsk->sk_dport);
+		
+		if (tsk->parent) {
+			free_tcp_sock(tsk->parent);
+		}
+
 		free_ring_buffer(tsk->rcv_buf);
 
 		free_wait_struct(tsk->wait_connect);
@@ -168,6 +173,9 @@ static int tcp_bind_hash(struct tcp_sock *tsk)
 	struct list_head *list = &tcp_bind_sock_table[bind_hash_value];
 	list_add_head(&tsk->bind_hash_list, list);
 
+	log(DEBUG, "insert " IP_FMT ":%hu <-> " IP_FMT ":%hu to bind_hash_list, ref_cnt += 1", 
+			HOST_IP_FMT_STR(tsk->sk_sip), tsk->sk_sport,
+			HOST_IP_FMT_STR(tsk->sk_dip), tsk->sk_dport);
 	tsk->ref_cnt += 1;
 
 	return 0;
@@ -280,6 +288,7 @@ void tcp_unhash(struct tcp_sock *tsk)
 int tcp_sock_bind(struct tcp_sock *tsk, struct sock_addr *skaddr)
 {
 	int err = 0;
+	log(DEBUG, "binding port %hu.", skaddr->port);
 
 	// omit the ip address, and only bind the port
 	err = tcp_sock_set_sport(tsk, ntohs(skaddr->port));
@@ -302,10 +311,10 @@ int tcp_sock_connect(struct tcp_sock *tsk, struct sock_addr *skaddr)
 	// fprintf(stdout, "TODO: implement %s please.\n", __FUNCTION__);
 	int err = 0;
 
-	tsk->sk_dip = skaddr->ip;
-	tsk->sk_dport = skaddr->port;
+	tsk->sk_dip = ntohl(skaddr->ip);
+	tsk->sk_dport = ntohs(skaddr->port);
 
-	rt_entry_t * rt = longest_prefix_match(skaddr->ip);
+	rt_entry_t * rt = longest_prefix_match(tsk->sk_dip);
 	if (!rt) {
 		log(ERROR, "cannot find route to daddr.");
 		return -1;
@@ -315,12 +324,6 @@ int tcp_sock_connect(struct tcp_sock *tsk, struct sock_addr *skaddr)
 	err = tcp_sock_set_sport(tsk, 0);
 	if (err) {
 		log(ERROR, "setting sport failed.");
-		return err;
-	}
-
-	err = tcp_bind_hash(tsk);
-	if (err) {
-		log(ERROR, "hashing into bind_table failed.");
 		return err;
 	}
 
@@ -349,9 +352,9 @@ int tcp_sock_listen(struct tcp_sock *tsk, int backlog)
 	// fprintf(stdout, "TODO: implement %s please.\n", __FUNCTION__);
 
 	int err = 0;
+	log(DEBUG, "listening port %hu.", tsk->sk_sport);
 
 	tsk->backlog = backlog;
-	tcp_unhash(tsk);
 	tcp_set_state(tsk, TCP_LISTEN);
 	err = tcp_hash(tsk);
 
@@ -423,20 +426,34 @@ struct tcp_sock *tcp_sock_accept(struct tcp_sock *tsk)
 void tcp_sock_close(struct tcp_sock *tsk)
 {
 	// fprintf(stdout, "TODO: implement %s please.\n", __FUNCTION__);
+	log(DEBUG, "close sock " IP_FMT ":%hu <-> " IP_FMT ":%hu, state %s", 
+			HOST_IP_FMT_STR(tsk->sk_sip), tsk->sk_sport,
+			HOST_IP_FMT_STR(tsk->sk_dip), tsk->sk_dport, tcp_state_str[tsk->state]);
 
 	if (tsk->state == TCP_LISTEN) {
 		tcp_set_state(tsk, TCP_CLOSED);
+
+		tcp_unhash(tsk);
+		tcp_bind_unhash(tsk);
+
 	} else if (tsk->state == TCP_SYN_SENT) {
 		tcp_set_state(tsk, TCP_CLOSED);
+		
+		tcp_unhash(tsk);
+		tcp_bind_unhash(tsk);
+
 	} else if (tsk->state == TCP_SYN_RECV) {
-		tcp_send_control_packet(tsk, TCP_FIN);
 		tcp_set_state(tsk, TCP_FIN_WAIT_1);
+		tcp_send_control_packet(tsk, TCP_FIN | TCP_ACK);
+		
 	} else if (tsk->state == TCP_ESTABLISHED) {
-		tcp_send_control_packet(tsk, TCP_FIN);
 		tcp_set_state(tsk, TCP_FIN_WAIT_1);
+		tcp_send_control_packet(tsk, TCP_FIN | TCP_ACK);
+
 	} else if (tsk->state == TCP_CLOSE_WAIT) {
-		tcp_send_control_packet(tsk, TCP_FIN);
 		tcp_set_state(tsk, TCP_LAST_ACK);
+		tcp_send_control_packet(tsk, TCP_FIN | TCP_ACK);
+
 	}
 
 	free_tcp_sock(tsk);
