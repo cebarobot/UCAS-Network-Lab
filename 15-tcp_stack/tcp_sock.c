@@ -59,6 +59,7 @@ struct tcp_sock *alloc_tcp_sock()
 	init_list_head(&tsk->accept_queue);
 
 	tsk->rcv_buf = alloc_ring_buffer(tsk->rcv_wnd);
+	pthread_mutex_init(&tsk->rcv_buf_lock, NULL);
 
 	tsk->wait_connect = alloc_wait_struct();
 	tsk->wait_accept = alloc_wait_struct();
@@ -457,4 +458,36 @@ void tcp_sock_close(struct tcp_sock *tsk)
 	}
 
 	free_tcp_sock(tsk);
+}
+
+int tcp_sock_read(struct tcp_sock *tsk, char *buf, int len) {
+	pthread_mutex_lock(&tsk->rcv_buf_lock);
+
+	while (ring_buffer_empty(tsk->rcv_buf)) {
+		if (tsk->state == TCP_CLOSED || tsk->state == TCP_LAST_ACK || tsk->state == TCP_CLOSE_WAIT) {
+			pthread_mutex_unlock(&tsk->rcv_buf_lock);
+			return 0;
+		} else {
+			pthread_mutex_unlock(&tsk->rcv_buf_lock);
+			sleep_on(tsk->wait_recv);
+			pthread_mutex_lock(&tsk->rcv_buf_lock);
+		}
+	}
+
+	int read_len = min(len, ring_buffer_used(tsk->rcv_buf));
+	read_ring_buffer(tsk->rcv_buf, buf, read_len);
+
+	tsk->rcv_wnd = ring_buffer_free(tsk->rcv_buf);
+
+	pthread_mutex_unlock(&tsk->rcv_buf_lock);
+	return len;
+}
+
+int tcp_sock_write(struct tcp_sock *tsk, char *buf, int len) {
+	while (len > 0) {
+		int write_len = tcp_send_data(tsk, buf, len);
+		buf += write_len;
+		len -= write_len;
+	}
+	return len;
 }

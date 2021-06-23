@@ -58,6 +58,8 @@ void *tcp_server(void *arg)
 
 	tcp_sock_close(csk);
 	
+	tcp_sock_close(tsk);
+	
 	return NULL;
 }
 
@@ -75,6 +77,8 @@ void *tcp_client(void *arg)
 		exit(1);
 	}
 
+	log(DEBUG, "connect success.");
+
 	char *data = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
 	int dlen = strlen(data);
 	char *wbuf = malloc(dlen+1);
@@ -88,6 +92,8 @@ void *tcp_client(void *arg)
 
 		if (tcp_sock_write(tsk, wbuf, dlen) < 0)
 			break;
+
+		log(DEBUG, "send packet");
 
 		rlen = tcp_sock_read(tsk, rbuf, 1000);
 		if (rlen == 0) {

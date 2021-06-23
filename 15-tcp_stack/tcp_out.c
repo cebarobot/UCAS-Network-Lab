@@ -112,3 +112,23 @@ void tcp_send_reset(struct tcp_cb *cb)
 
 	ip_send_packet(packet, pkt_size);
 }
+
+// send tcp data packet
+int tcp_send_data(struct tcp_sock *tsk, char *buf, int len) {
+	len = min(len, ETH_FRAME_LEN - ETHER_HDR_SIZE - IP_BASE_HDR_SIZE - TCP_BASE_HDR_SIZE);
+	
+	int data_pkt_len = ETHER_HDR_SIZE + IP_BASE_HDR_SIZE + TCP_BASE_HDR_SIZE + len;
+	char * data_pkt = malloc(data_pkt_len);
+	char * pkt_payload = data_pkt + ETHER_HDR_SIZE + IP_BASE_HDR_SIZE + TCP_BASE_HDR_SIZE;
+	memcpy(pkt_payload, buf, len);
+
+	while (tsk->snd_wnd < len) {
+		log(DEBUG, "send windows %d but want to send %d.", tsk->snd_wnd, len);
+		tsk->snd_wnd = 0;
+		sleep_on(tsk->wait_send);
+	}
+
+	tcp_send_packet(tsk, data_pkt, data_pkt_len);
+
+	return len;
+}

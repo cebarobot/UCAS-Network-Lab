@@ -42,6 +42,31 @@ static inline int is_tcp_seq_valid(struct tcp_sock *tsk, struct tcp_cb *cb)
 	}
 }
 
+// handle the recv data from TCP packet
+int handle_tcp_recv_data(struct tcp_sock *tsk, struct tcp_cb * cb) {
+	if (cb->pl_len <= 0) {
+		return 0;
+	}
+
+	pthread_mutex_lock(&tsk->rcv_buf_lock);
+
+	if (cb->pl_len > ring_buffer_free(tsk->rcv_buf)) {
+		log(DEBUG, "receive packet is larger than rcv_buf_free, drop it.");
+
+		pthread_mutex_unlock(&tsk->rcv_buf_lock);
+		return 0;
+	}
+	write_ring_buffer(tsk->rcv_buf, cb->payload, cb->pl_len);
+
+	tsk->rcv_wnd = ring_buffer_free(tsk->rcv_buf);
+
+	wake_up(tsk->wait_recv);
+
+	pthread_mutex_unlock(&tsk->rcv_buf_lock);
+
+	return 1;
+}
+
 // Process the incoming packet according to TCP state machine. 
 void tcp_process(struct tcp_sock *tsk, struct tcp_cb *cb, char *packet)
 {
@@ -98,6 +123,8 @@ void tcp_process(struct tcp_sock *tsk, struct tcp_cb *cb, char *packet)
 	} else if (tsk->state == TCP_SYN_SENT) {
 		if (cb->flags == (TCP_SYN | TCP_ACK)) {
 			tsk->rcv_nxt = cb->seq_end;
+
+			tcp_update_window_safe(tsk, cb);
 			tsk->snd_una = cb->ack;
 
 			tcp_set_state(tsk, TCP_ESTABLISHED);
@@ -121,6 +148,8 @@ void tcp_process(struct tcp_sock *tsk, struct tcp_cb *cb, char *packet)
 				return;
 			}
 			tsk->rcv_nxt = cb->seq_end;
+
+			tcp_update_window_safe(tsk, cb);
 			tsk->snd_una = cb->ack;
 
 			if (tsk->parent) {
@@ -154,17 +183,24 @@ void tcp_process(struct tcp_sock *tsk, struct tcp_cb *cb, char *packet)
 		if (!is_tcp_seq_valid(tsk, cb)) {
 			return;
 		}
-		tsk->rcv_nxt = cb->seq_end;
 
 		if (cb->flags & TCP_ACK) {
+			tcp_update_window_safe(tsk, cb);
 			tsk->snd_una = cb->ack;
-			// do something but not this stage
 		}
 
 		if (cb->flags & TCP_FIN) {
 			tcp_set_state(tsk, TCP_CLOSE_WAIT);
 			// send ACK;
+			tsk->rcv_nxt = cb->seq_end;
 			tcp_send_control_packet(tsk, TCP_ACK);
+			
+			wake_up(tsk->wait_recv);
+		} else {
+			if (handle_tcp_recv_data(tsk, cb)) {
+				tsk->rcv_nxt = cb->seq_end;
+				tcp_send_control_packet(tsk, TCP_ACK);
+			}
 		}
 
 	} else if (tsk->state == TCP_FIN_WAIT_1) {
@@ -176,8 +212,8 @@ void tcp_process(struct tcp_sock *tsk, struct tcp_cb *cb, char *packet)
 		tsk->rcv_nxt = cb->seq_end;
 
 		if (cb->flags & TCP_ACK) {
+			tcp_update_window_safe(tsk, cb);
 			tsk->snd_una = cb->ack;
-			// do something but not this stage
 		}
 
 		if ((cb->flags & TCP_FIN) && (cb->flags & TCP_ACK) && tsk->snd_nxt == tsk->snd_una) {
@@ -206,8 +242,8 @@ void tcp_process(struct tcp_sock *tsk, struct tcp_cb *cb, char *packet)
 		tsk->rcv_nxt = cb->seq_end;
 
 		if (cb->flags & TCP_ACK) {
+			tcp_update_window_safe(tsk, cb);
 			tsk->snd_una = cb->ack;
-			// do something but not this stage
 		}
 
 		if (cb->flags & TCP_FIN) {
@@ -226,8 +262,8 @@ void tcp_process(struct tcp_sock *tsk, struct tcp_cb *cb, char *packet)
 		tsk->rcv_nxt = cb->seq_end;
 
 		if (cb->flags & TCP_ACK) {
+			tcp_update_window_safe(tsk, cb);
 			tsk->snd_una = cb->ack;
-			// do something but not this stage
 		}
 
 		if ((cb->flags & TCP_ACK) && tsk->snd_nxt == tsk->snd_una) {
@@ -251,8 +287,8 @@ void tcp_process(struct tcp_sock *tsk, struct tcp_cb *cb, char *packet)
 		tsk->rcv_nxt = cb->seq_end;
 
 		if (cb->flags & TCP_ACK) {
+			tcp_update_window_safe(tsk, cb);
 			tsk->snd_una = cb->ack;
-			// do something but not this stage
 		}
 
 		if ((cb->flags & TCP_ACK) && tsk->snd_nxt == tsk->snd_una) {

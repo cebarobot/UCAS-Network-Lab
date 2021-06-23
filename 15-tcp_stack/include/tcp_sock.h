@@ -75,6 +75,7 @@ struct tcp_sock {
 
 	// receiving buffer
 	struct ring_buffer *rcv_buf;
+	pthread_mutex_t rcv_buf_lock;
 	// used to pend unacked packets
 	struct list_head send_buf;
 	// used to pend out-of-order packets
