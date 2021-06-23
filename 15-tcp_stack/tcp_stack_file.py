@@ -19,19 +19,13 @@ def server(port, filename):
     cs, addr = s.accept()
     print addr
     
-    file_size = os.path.getsize(filename)
-    send_size = 0
-
-    with open(filename, 'rb') as f:
+    with open(filename, 'wb') as f:
         while True:
-            data = f.read(1024)
+            data = cs.recv(1024)
             if data:
-                send_size += sys.getsizeof(data)
-                print '%f%%' % (float(send_size) / file_size)
-                cs.send(data)
+                f.write(data)
             else:
                 break
-            sleep(0.05)
     
     s.close()
 
@@ -40,13 +34,19 @@ def client(ip, port, filename):
     s = socket.socket()
     s.connect((ip, int(port)))
     
-    with open(filename, 'wb') as f:
+    file_size = os.path.getsize(filename)
+    send_size = 0
+
+    with open(filename, 'rb') as f:
         while True:
-            data = s.recv(1024)
+            data = f.read(1024)
             if data:
-                f.write(data)
+                send_size += sys.getsizeof(data)
+                print 'send %d Bytes' % (send_size)
+                s.send(data)
             else:
                 break
+            sleep(0.01)
     
     s.close()
 

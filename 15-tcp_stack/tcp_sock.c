@@ -480,7 +480,7 @@ int tcp_sock_read(struct tcp_sock *tsk, char *buf, int len) {
 	tsk->rcv_wnd = ring_buffer_free(tsk->rcv_buf);
 
 	pthread_mutex_unlock(&tsk->rcv_buf_lock);
-	return len;
+	return read_len;
 }
 
 int tcp_sock_write(struct tcp_sock *tsk, char *buf, int len) {
