@@ -9,6 +9,22 @@
 #include <stdlib.h>
 #include <string.h>
 
+void insert_send_buf(struct tcp_sock *tsk, char *packet, int len, u32 seq, u32 seq_len) {
+	struct pend_pkt * p = malloc(sizeof(struct pend_pkt));
+
+	char * pkt_in_buf = malloc(len);
+	memcpy(pkt_in_buf, packet, len);
+	p->packet = pkt_in_buf;
+	p->packet_len = len;
+
+	p->seq = seq;
+	p->seq_end = seq_len;
+
+	list_add_tail(&p->list, &tsk->send_buf);
+
+	tcp_set_retrans_timer(tsk);
+}
+
 // initialize tcp header according to the arguments
 static void tcp_init_hdr(struct tcphdr *tcp, u16 sport, u16 dport, u32 seq, u32 ack,
 		u8 flags, u16 rwnd)
@@ -55,6 +71,8 @@ void tcp_send_packet(struct tcp_sock *tsk, char *packet, int len)
 
 	tsk->snd_nxt += tcp_data_len;
 
+	// TODO: insert_send_buf(tsk, packet, len, seq, seq_len);
+
 	ip_send_packet(packet, len);
 }
 
@@ -83,8 +101,10 @@ void tcp_send_control_packet(struct tcp_sock *tsk, u8 flags)
 
 	tcp->checksum = tcp_checksum(ip, tcp);
 
-	if (flags & (TCP_SYN|TCP_FIN))
+	if (flags & (TCP_SYN|TCP_FIN)) {
 		tsk->snd_nxt += 1;
+		// TODO: insert_send_buf(tsk, packet, len, seq, seq_len);
+	}
 
 	ip_send_packet(packet, pkt_size);
 }

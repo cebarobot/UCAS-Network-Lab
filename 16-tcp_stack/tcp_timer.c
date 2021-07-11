@@ -40,8 +40,9 @@ void tcp_scan_timer_list()
 
 					// just leave the closed sock in accept_queue/user
 				} else if (timer_p->type == TIMER_TYPE_RETRANS) {
+					// TODO: retrans first data packet
 					tsk = retranstimer_to_tcp_sock(timer_p);
-					// nothing to do in this version
+					// 
 				}
 			}
 		}
@@ -68,6 +69,26 @@ void tcp_set_timewait_timer(struct tcp_sock *tsk)
 	pthread_mutex_lock(&timer_list_lock);
 	list_add_tail(&tsk->timewait.list, &timer_list);
 	pthread_mutex_unlock(&timer_list_lock);
+}
+
+// set the retrans timer of a tcp sock, by adding the timer into timer_list
+void tcp_set_retrans_timer(struct tcp_sock *tsk) {
+	pthread_mutex_lock(&timer_list_lock);
+
+	if (tsk->retrans_timer.enable) {
+
+	} else {
+		tsk->retrans_timer.enable = 1;
+		tsk->retrans_timer.type = TIMER_TYPE_RETRANS;
+		tsk->retrans_timer.timeout = TCP_RETRANS_INTERVAL_INITIAL;
+		list_add_tail(&tsk->retrans_timer, &timer_list);
+	}
+
+	pthread_mutex_unlock(&timer_list_lock);
+}
+
+void tcp_unset_retrans_timer(struct tcp_sock *tsk) {
+
 }
 
 // scan the timer_list periodically by calling tcp_scan_timer_list

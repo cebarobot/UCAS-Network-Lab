@@ -76,10 +76,14 @@ struct tcp_sock {
 	// receiving buffer
 	struct ring_buffer *rcv_buf;
 	pthread_mutex_t rcv_buf_lock;
+
 	// used to pend unacked packets
 	struct list_head send_buf;
+	pthread_mutex_t send_buf_lock;
+
 	// used to pend out-of-order packets
 	struct list_head rcv_ofo_buf;
+	pthread_mutex_t rcv_ofo_buf_lock;
 
 	// tcp state, see enum tcp_state in tcp.h
 	int state;
@@ -96,7 +100,7 @@ struct tcp_sock {
 	u32 rcv_nxt;
 
 	// used to indicate the end of fast recovery
-	u32 recovery_point;		
+	u32 recovery_point;
 
 	// min(adv_wnd, cwnd)
 	u32 snd_wnd;
@@ -111,6 +115,14 @@ struct tcp_sock {
 
 	// slow start threshold
 	u32 ssthresh;
+};
+
+struct pend_pkt {
+	struct list_head list;
+	char * packet;
+	int packet_len;
+	u32 seq;
+	u32 seq_end;
 };
 
 void tcp_set_state(struct tcp_sock *tsk, int state);
