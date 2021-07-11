@@ -136,7 +136,7 @@ static int handle_ack_control(struct tcp_sock *tsk, struct tcp_cb * cb) {
 				list_delete_entry(&tsk->list);
 				free_tcp_sock(tsk);
 				log(DEBUG, "The tsk should be freed.");
-				return 1;
+				return -1;
 
 			} else {
 				tcp_set_state(tsk, TCP_ESTABLISHED);
@@ -162,7 +162,7 @@ static int handle_ack_control(struct tcp_sock *tsk, struct tcp_cb * cb) {
 		// release the sock
 		tcp_unhash(tsk);
 		tcp_bind_unhash(tsk);
-		return 1;
+		return -1;
 	}
 	return 0;
 }
@@ -179,7 +179,7 @@ static int handle_tcp_recv_data(struct tcp_sock *tsk, struct tcp_cb * cb) {
 		log(DEBUG, "receive packet is larger than rcv_buf_free, drop it.");
 
 		pthread_mutex_unlock(&tsk->rcv_buf_lock);
-		return 0;
+		return -1;
 	}
 	write_ring_buffer(tsk->rcv_buf, cb->payload, cb->pl_len);
 
@@ -189,7 +189,7 @@ static int handle_tcp_recv_data(struct tcp_sock *tsk, struct tcp_cb * cb) {
 
 	pthread_mutex_unlock(&tsk->rcv_buf_lock);
 
-	return 1;
+	return 0;
 }
 
 static void handle_fin(struct tcp_sock *tsk, struct tcp_cb *cb) {
@@ -283,7 +283,7 @@ void tcp_process(struct tcp_sock *tsk, struct tcp_cb *cb, char *packet)
 
 	// checking new data
 	if (handle_tcp_recv_data(tsk, cb)) {
-		tsk->rcv_nxt = cb->seq_end;
+		return;
 	}
 
 	// close connection control start
@@ -291,15 +291,7 @@ void tcp_process(struct tcp_sock *tsk, struct tcp_cb *cb, char *packet)
 		handle_fin(tsk, cb);
 	}
 
+	tsk->rcv_nxt = cb->seq_end;
+
 	tcp_send_control_packet(tsk, TCP_ACK);
-
-	if (tsk->state == TCP_TIME_WAIT) {
-		log(DEBUG, "receive a packet of a TCP_TIME_WAIT sock.");
-		// do something but not this stage
-
-	} else if (tsk->state == TCP_CLOSE_WAIT) {
-		log(DEBUG, "receive a packet of a TCP_CLOSE_WAIT sock.");
-		// nothing to do;
-
-	}
 }

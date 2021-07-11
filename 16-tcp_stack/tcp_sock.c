@@ -61,6 +61,12 @@ struct tcp_sock *alloc_tcp_sock()
 	tsk->rcv_buf = alloc_ring_buffer(tsk->rcv_wnd);
 	pthread_mutex_init(&tsk->rcv_buf_lock, NULL);
 
+	init_list_head(&tsk->send_buf);
+	pthread_mutex_init(&tsk->send_buf_lock, NULL);
+
+	init_list_head(&tsk->rcv_ofo_buf);
+	pthread_mutex_init(&tsk->rcv_ofo_buf_lock, NULL);
+
 	tsk->wait_connect = alloc_wait_struct();
 	tsk->wait_accept = alloc_wait_struct();
 	tsk->wait_recv = alloc_wait_struct();

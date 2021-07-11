@@ -81,7 +81,7 @@ void tcp_set_retrans_timer(struct tcp_sock *tsk) {
 		tsk->retrans_timer.enable = 1;
 		tsk->retrans_timer.type = TIMER_TYPE_RETRANS;
 		tsk->retrans_timer.timeout = TCP_RETRANS_INTERVAL_INITIAL;
-		list_add_tail(&tsk->retrans_timer, &timer_list);
+		list_add_tail(&tsk->retrans_timer.list, &timer_list);
 	}
 
 	pthread_mutex_unlock(&timer_list_lock);
