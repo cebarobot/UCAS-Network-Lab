@@ -6,6 +6,59 @@
 #include "ring_buffer.h"
 
 #include <stdlib.h>
+
+void rcv_ofo_buf_insert(struct tcp_sock *tsk, struct tcp_cb * cb) {
+	// pthread_mutex_lock(&tsk->rcv_ofo_buf_lock);
+
+	struct ofo_pkt * new_pend = malloc(sizeof(struct ofo_pkt));
+
+	new_pend->cb = *cb;
+	new_pend->cb.payload = malloc(cb->pl_len);
+	memcpy(new_pend->cb.payload, cb->payload, cb->pl_len);
+
+	struct ofo_pkt * p = NULL, * insert_pos = NULL;
+	list_for_each_entry(p, &tsk->rcv_ofo_buf, list) {
+		// if (new_pend->seq_end <= p->seq) {
+		if (less_or_equal_32b(new_pend->cb.seq_end, p->cb.seq)) {
+			insert_pos = p;
+			break;
+		}
+	}
+
+	if (insert_pos) {
+		list_insert(&new_pend->list, insert_pos->list.prev, &insert_pos->list);
+	} else {
+		list_add_tail(&new_pend->list, &tsk->rcv_ofo_buf);
+	}
+
+	// pthread_mutex_unlock(&tsk->rcv_ofo_buf_lock);
+}
+
+void rcv_ofo_buf_sweep(struct tcp_sock *tsk) {
+	// pthread_mutex_lock(&tsk->rcv_ofo_buf_lock);
+
+	struct ofo_pkt * p = NULL, * q = NULL;
+	list_for_each_entry_safe(p, q, &tsk->rcv_ofo_buf, list) {
+		if (less_or_equal_32b(p->cb.seq, tsk->rcv_nxt)) {
+			if (p->cb.seq == tsk->rcv_nxt) {
+				tcp_ofo_process(tsk, &p->cb);
+			} else {
+				log(DEBUG, "ofo packet had been processed before, drop it.");
+			}
+
+			free(p->cb.payload);
+			list_delete_entry(&p->list);
+			free(p);
+
+		} else {
+			break;
+		}
+	}
+
+	// pthread_mutex_unlock(&tsk->rcv_ofo_buf_lock);
+}
+
+
 // update the snd_wnd of tcp_sock
 //
 // if the snd_wnd before updating is zero, notify tcp_sock_send (wait_send)
@@ -101,16 +154,10 @@ static void handle_syn(struct tcp_sock *tsk, struct tcp_cb *cb) {
 }
 
 static void handle_ack_packet(struct tcp_sock *tsk, struct tcp_cb * cb) {
-	if (cb->ack > tsk->snd_una) {
-		struct pend_pkt *pkt_p = NULL, *pkt_q = NULL;
-		list_for_each_entry_safe(pkt_p, pkt_q, &tsk->send_buf, list) {
-			if (cb->ack >= pkt_p->seq_end) {
-
-			} else {
-				break;
-			}
-		}
+	// if (cb->ack > tsk->snd_una) {
+	if (greater_than_32b(cb->ack, tsk->snd_una)) {
 		tsk->snd_una = cb->ack;
+		send_buf_sweep(tsk);
 	}
 
 	return;
@@ -163,6 +210,9 @@ static int handle_ack_control(struct tcp_sock *tsk, struct tcp_cb * cb) {
 		tcp_unhash(tsk);
 		tcp_bind_unhash(tsk);
 		return -1;
+	} else if (tsk->state == TCP_TIME_WAIT) {
+		tcp_set_timewait_timer(tsk);
+
 	}
 	return 0;
 }
@@ -272,14 +322,22 @@ void tcp_process(struct tcp_sock *tsk, struct tcp_cb *cb, char *packet)
 	}
 
 	// checking out of order
-	if (cb->seq < tsk->rcv_nxt) {
+	// if (cb->seq < tsk->rcv_nxt) {
+	if (less_than_32b(cb->seq, tsk->rcv_nxt)) {
 		log(DEBUG, "received packet had been received before, drop it.");
 		return;
-	} else if (cb->seq > tsk->rcv_nxt) {
+
+	// } else if (cb->seq > tsk->rcv_nxt) {
+	} else if (greater_than_32b(cb->seq, tsk->rcv_nxt)) {
 		log(DEBUG, "received packet out of order.");
-		// TODO: insert_rcv_ofo_buf();
+		
+		rcv_ofo_buf_insert(tsk, cb);
+		tcp_send_control_packet(tsk, TCP_ACK);
+
 		return;
 	}
+
+	log(DEBUG, "process pkt: %d - %d", cb->seq, cb->seq_end);
 
 	// checking new data
 	if (handle_tcp_recv_data(tsk, cb)) {
@@ -293,5 +351,23 @@ void tcp_process(struct tcp_sock *tsk, struct tcp_cb *cb, char *packet)
 
 	tsk->rcv_nxt = cb->seq_end;
 
+	rcv_ofo_buf_sweep(tsk);
+
 	tcp_send_control_packet(tsk, TCP_ACK);
+}
+
+void tcp_ofo_process(struct tcp_sock *tsk, struct tcp_cb *cb) {
+	log(DEBUG, "process ofo pkt: %d - %d", cb->seq, cb->seq_end);
+
+	// checking new data
+	if (handle_tcp_recv_data(tsk, cb)) {
+		return;
+	}
+
+	// close connection control start
+	if (cb->flags & TCP_FIN) {
+		handle_fin(tsk, cb);
+	}
+
+	tsk->rcv_nxt = cb->seq_end;
 }

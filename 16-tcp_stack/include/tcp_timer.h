@@ -26,13 +26,15 @@ struct tcp_sock;
 #define TCP_TIMEWAIT_TIMEOUT	(2 * TCP_MSL)
 #define TCP_RETRANS_INTERVAL_INITIAL 200000
 
+// init sources of tcp_timer
+void tcp_timer_init();
 // the thread that scans timer_list periodically
 void *tcp_timer_thread(void *arg);
 // add the timer of tcp sock to timer_list
 void tcp_set_timewait_timer(struct tcp_sock *);
 
 void tcp_set_retrans_timer(struct tcp_sock *tsk);
-
+int tcp_update_retrans_timer(struct tcp_sock *tsk, int retrans_times);
 void tcp_unset_retrans_timer(struct tcp_sock *tsk);
 
 #endif

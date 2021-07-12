@@ -83,7 +83,7 @@ struct tcp_sock {
 
 	// used to pend out-of-order packets
 	struct list_head rcv_ofo_buf;
-	pthread_mutex_t rcv_ofo_buf_lock;
+	// pthread_mutex_t rcv_ofo_buf_lock;
 
 	// tcp state, see enum tcp_state in tcp.h
 	int state;
@@ -121,8 +121,14 @@ struct pend_pkt {
 	struct list_head list;
 	char * packet;
 	int packet_len;
+	int retrans_times;
 	u32 seq;
 	u32 seq_end;
+};
+
+struct ofo_pkt {
+	struct list_head list;
+	struct tcp_cb cb;
 };
 
 void tcp_set_state(struct tcp_sock *tsk, int state);
@@ -140,6 +146,10 @@ struct tcp_sock *tcp_sock_lookup(struct tcp_cb *cb);
 
 u32 tcp_new_iss();
 
+void send_buf_insert(struct tcp_sock *tsk, char *packet, int len, u32 seq, u32 seq_len);
+void send_buf_sweep(struct tcp_sock *tsk);
+int send_buf_retrans(struct tcp_sock *tsk);
+
 void tcp_send_reset(struct tcp_cb *cb);
 
 void tcp_send_control_packet(struct tcp_sock *tsk, u8 flags);
@@ -147,6 +157,7 @@ void tcp_send_packet(struct tcp_sock *tsk, char *packet, int len);
 int tcp_send_data(struct tcp_sock *tsk, char *buf, int len);
 
 void tcp_process(struct tcp_sock *tsk, struct tcp_cb *cb, char *packet);
+void tcp_ofo_process(struct tcp_sock *tsk, struct tcp_cb *cb);
 
 void init_tcp_stack();
 

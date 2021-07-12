@@ -9,20 +9,84 @@
 #include <stdlib.h>
 #include <string.h>
 
-void insert_send_buf(struct tcp_sock *tsk, char *packet, int len, u32 seq, u32 seq_len) {
-	struct pend_pkt * p = malloc(sizeof(struct pend_pkt));
+void send_buf_insert(struct tcp_sock *tsk, char *packet, int len, u32 seq, u32 seq_end) {
+	pthread_mutex_lock(&tsk->send_buf_lock);
+
+	struct pend_pkt * new_pend = malloc(sizeof(struct pend_pkt));
 
 	char * pkt_in_buf = malloc(len);
 	memcpy(pkt_in_buf, packet, len);
-	p->packet = pkt_in_buf;
-	p->packet_len = len;
+	new_pend->packet = pkt_in_buf;
+	new_pend->packet_len = len;
 
-	p->seq = seq;
-	p->seq_end = seq_len;
+	new_pend->retrans_times = 0;
+	new_pend->seq = seq;
+	new_pend->seq_end = seq_end;
 
-	list_add_tail(&p->list, &tsk->send_buf);
+	if (list_empty(&tsk->send_buf)) {
+		tcp_set_retrans_timer(tsk);
+	}
+	log(INFO, "checkpoint 1");
 
-	tcp_set_retrans_timer(tsk);
+	list_add_tail(&new_pend->list, &tsk->send_buf);
+
+	log(INFO, "checkpoint 1");
+
+	pthread_mutex_unlock(&tsk->send_buf_lock);
+}
+
+void send_buf_sweep(struct tcp_sock *tsk) {
+	pthread_mutex_lock(&tsk->send_buf_lock);
+
+	struct pend_pkt *p = NULL, *q = NULL;
+	list_for_each_entry_safe(p, q, &tsk->send_buf, list) {
+		// if (p->seq_end <= tsk->snd_una) {
+		if (less_or_equal_32b(p->seq_end, tsk->snd_una)) {
+			free(p->packet);
+			list_delete_entry(&p->list);
+			free(p);
+
+		} else {
+			break;
+		}
+	}
+
+	if (list_empty(&tsk->send_buf)) {
+		tcp_unset_retrans_timer(tsk);
+	} else {
+		tcp_set_retrans_timer(tsk);
+	}
+
+	pthread_mutex_unlock(&tsk->send_buf_lock);
+}
+
+int send_buf_retrans(struct tcp_sock *tsk) {
+	int ret = 0;
+
+	pthread_mutex_lock(&tsk->send_buf_lock);
+
+	struct pend_pkt * p = list_entry(tsk->send_buf.next, struct pend_pkt, list);
+
+	if (p->retrans_times >= TCP_MAX_RETRANS_TIMES) {
+		log(ERROR, "TCP retransmission timeout, close this sock.");
+		tcp_send_control_packet(tsk, TCP_RST);
+		tcp_set_state(tsk, TCP_CLOSED);
+		
+		ret = -1;
+
+	} else if (tcp_update_retrans_timer(tsk, p->retrans_times + 1)) {
+		p->retrans_times += 1;
+
+		char *packet = malloc(p->packet_len);
+		memcpy(packet, p->packet, p->packet_len);
+		
+		log(INFO, "retrans packet");
+		ip_send_packet(packet, p->packet_len);
+	}
+
+	pthread_mutex_unlock(&tsk->send_buf_lock);
+
+	return ret;
 }
 
 // initialize tcp header according to the arguments
@@ -71,7 +135,7 @@ void tcp_send_packet(struct tcp_sock *tsk, char *packet, int len)
 
 	tsk->snd_nxt += tcp_data_len;
 
-	// TODO: insert_send_buf(tsk, packet, len, seq, seq_len);
+	send_buf_insert(tsk, packet, len, seq, tsk->snd_nxt);
 
 	ip_send_packet(packet, len);
 }
@@ -102,8 +166,10 @@ void tcp_send_control_packet(struct tcp_sock *tsk, u8 flags)
 	tcp->checksum = tcp_checksum(ip, tcp);
 
 	if (flags & (TCP_SYN|TCP_FIN)) {
+		u32 seq = tsk->snd_nxt;
 		tsk->snd_nxt += 1;
-		// TODO: insert_send_buf(tsk, packet, len, seq, seq_len);
+		
+		send_buf_insert(tsk, packet, pkt_size, seq, tsk->snd_nxt);
 	}
 
 	ip_send_packet(packet, pkt_size);

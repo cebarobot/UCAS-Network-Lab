@@ -38,6 +38,8 @@ void init_tcp_stack()
 	for (int i = 0; i < TCP_HASH_SIZE; i++)
 		init_list_head(&tcp_bind_sock_table[i]);
 
+	tcp_timer_init();
+
 	pthread_t timer;
 	pthread_create(&timer, NULL, tcp_timer_thread, NULL);
 }
@@ -65,12 +67,15 @@ struct tcp_sock *alloc_tcp_sock()
 	pthread_mutex_init(&tsk->send_buf_lock, NULL);
 
 	init_list_head(&tsk->rcv_ofo_buf);
-	pthread_mutex_init(&tsk->rcv_ofo_buf_lock, NULL);
+	// pthread_mutex_init(&tsk->rcv_ofo_buf_lock, NULL);
 
 	tsk->wait_connect = alloc_wait_struct();
 	tsk->wait_accept = alloc_wait_struct();
 	tsk->wait_recv = alloc_wait_struct();
 	tsk->wait_send = alloc_wait_struct();
+
+	tsk->timewait.enable = 0;
+	tsk->retrans_timer.enable = 0;
 
 	log(DEBUG, "alloc a new tcp sock, ref_cnt = 1");
 	tsk->ref_cnt += 1;
@@ -104,6 +109,9 @@ void free_tcp_sock(struct tcp_sock *tsk)
 		free_wait_struct(tsk->wait_accept);
 		free_wait_struct(tsk->wait_recv);
 		free_wait_struct(tsk->wait_send);
+
+		// free_snd_buf(tsk);
+		// free_rcv_ofo_buf(tsk);
 
 		free(tsk);
 	} else {

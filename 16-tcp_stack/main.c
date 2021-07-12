@@ -158,8 +158,8 @@ int main(int argc, char **argv)
 
 	init_tcp_stack();
 
-	run_application((const char *)basename(argv[0]), argv+1, argc-1);
-	// run_application_file((const char *)basename(argv[0]), argv+1, argc-1);
+	// run_application((const char *)basename(argv[0]), argv+1, argc-1);
+	run_application_file((const char *)basename(argv[0]), argv+1, argc-1);
 
 	ustack_run();
 

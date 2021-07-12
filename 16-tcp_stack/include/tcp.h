@@ -43,6 +43,8 @@ struct tcphdr {
 
 #define TCP_DEFAULT_WINDOW 65535
 
+#define TCP_MAX_RETRANS_TIMES	3
+
 // control block, representing all the necesary information of a packet
 struct tcp_cb {
 	u32 saddr;		// source addr of the packet
