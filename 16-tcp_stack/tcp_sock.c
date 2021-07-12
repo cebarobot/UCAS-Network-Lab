@@ -498,10 +498,11 @@ int tcp_sock_read(struct tcp_sock *tsk, char *buf, int len) {
 }
 
 int tcp_sock_write(struct tcp_sock *tsk, char *buf, int len) {
+	int old_len = len;
 	while (len > 0) {
 		int write_len = tcp_send_data(tsk, buf, len);
 		buf += write_len;
 		len -= write_len;
 	}
-	return len;
+	return old_len;
 }
