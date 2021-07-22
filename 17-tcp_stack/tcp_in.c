@@ -65,7 +65,8 @@ void rcv_ofo_buf_sweep(struct tcp_sock *tsk) {
 static inline void tcp_update_window(struct tcp_sock *tsk, struct tcp_cb *cb)
 {
 	u16 old_snd_wnd = tsk->snd_wnd;
-	tsk->snd_wnd = cb->rwnd;
+	tsk->adv_wnd = cb->rwnd;
+	tsk->snd_wnd = min(tsk->adv_wnd, tsk->cwnd * TCP_MSS);
 	if (old_snd_wnd == 0)
 		wake_up(tsk->wait_send);
 }
@@ -88,9 +89,10 @@ static inline int is_tcp_seq_valid(struct tcp_sock *tsk, struct tcp_cb *cb)
 	u32 rcv_end = tsk->rcv_nxt + max(tsk->rcv_wnd, 1);
 	if (less_than_32b(cb->seq, rcv_end) && less_or_equal_32b(tsk->rcv_nxt, cb->seq_end)) {
 		return 1;
-	}
-	else {
+	} else {
 		log(ERROR, "received packet with invalid seq, drop it.");
+		log(ERROR, "seq: %d ~ %d", cb->seq, cb->seq_end);
+		log(ERROR, "win: %d ~ %d", tsk->rcv_nxt, rcv_end);
 		return 0;
 	}
 }
@@ -154,10 +156,93 @@ static void handle_syn(struct tcp_sock *tsk, struct tcp_cb *cb) {
 }
 
 static void handle_ack_packet(struct tcp_sock *tsk, struct tcp_cb * cb) {
+	int is_dup_ack = 0;
+	int do_ack_new = 0;
+
+	if (cb->ack == tsk->snd_una && cb->seq == tsk->dup_ack_seq) {
+		// duplicate ACK
+		tsk->dup_ack_cnt += 1;
+		is_dup_ack = 1;
+	} else {
+		tsk->dup_ack_cnt = 0;
+		tsk->dup_ack_seq = cb->seq;
+	}
+
 	// if (cb->ack > tsk->snd_una) {
 	if (greater_than_32b(cb->ack, tsk->snd_una)) {
 		tsk->snd_una = cb->ack;
 		send_buf_sweep(tsk);
+		do_ack_new = 1;
+	}
+	
+
+	if (is_dup_ack || do_ack_new) {
+		pthread_mutex_lock(&tsk->c_lock);
+
+		if (tsk->c_state == OPEN) {
+			if (tsk->cwnd >= tsk->ssthresh) {
+				tsk->cwnd_cnt += 1;
+				if (tsk->cwnd_cnt >= tsk->cwnd) {
+					tsk->cwnd += 1;
+					tsk->cwnd_cnt = 0;
+				}
+			} else {
+				tsk->cwnd += 1;
+			}
+
+			if (tsk->dup_ack_cnt >= 3) {
+				tsk->c_state = RECOVERY;
+				tsk->cwnd_cnt = 0;
+				tsk->ssthresh = tsk->cwnd / 2;
+				tsk->recovery_point = tsk->snd_nxt;
+
+				if (send_buf_retrans(tsk, 1)) {
+					tcp_unhash(tsk);
+					tcp_bind_unhash(tsk);
+					tcp_unset_retrans_timer(tsk);
+				}
+
+			}
+		} else if (tsk->c_state == RECOVERY) {
+			if (tsk->cwnd > tsk->ssthresh + 3) {
+				tsk->cwnd -= 1;
+				// if (tsk->cwnd_cnt >= 1) {
+				// 	tsk->cwnd_cnt = 0;
+				// 	tsk->cwnd -= 1;
+				// } else {
+				// 	tsk->cwnd_cnt += 1;
+				// }
+			}
+
+			// if (tsk->snd_una >= tsk->recover_point) {
+			if (greater_or_equal_32b(tsk->snd_una, tsk->recovery_point)) {
+				tsk->c_state = OPEN;
+				tsk->cwnd_cnt = 0;
+
+			} else if (do_ack_new) {
+				if (send_buf_retrans(tsk, 1)) {
+					tcp_unhash(tsk);
+					tcp_bind_unhash(tsk);
+					tcp_unset_retrans_timer(tsk);
+				}
+			}
+		} else if (tsk->c_state == LOSS) {
+			if (greater_or_equal_32b(tsk->snd_una, tsk->recovery_point)) {
+				tsk->c_state = OPEN;
+				tsk->cwnd_cnt = 0;
+				tsk->cwnd = 1;
+
+			} else if (do_ack_new) {
+				if (send_buf_retrans(tsk, 1)) {
+					tcp_unhash(tsk);
+					tcp_bind_unhash(tsk);
+					tcp_unset_retrans_timer(tsk);
+				}
+			}
+		}
+
+		tcp_log_cwnd(tsk);
+		pthread_mutex_unlock(&tsk->c_lock);
 	}
 
 	return;
@@ -325,6 +410,7 @@ void tcp_process(struct tcp_sock *tsk, struct tcp_cb *cb, char *packet)
 	// if (cb->seq < tsk->rcv_nxt) {
 	if (less_than_32b(cb->seq, tsk->rcv_nxt)) {
 		log(DEBUG, "received packet had been received before, drop it.");
+		tcp_send_control_packet(tsk, TCP_ACK);
 		return;
 
 	// } else if (cb->seq > tsk->rcv_nxt) {

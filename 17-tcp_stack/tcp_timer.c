@@ -58,12 +58,24 @@ void tcp_scan_timer_list()
 	// retrans first packet
 	for (int i = 0; i < retrans_sks_cnt; i++) {
 		struct tcp_sock * tsk = retrans_sks[i];
-		if (send_buf_retrans(tsk)) {
+		pthread_mutex_lock(&tsk->c_lock);
+
+		tsk->c_state = LOSS;
+		tsk->ssthresh = tsk->cwnd / 2;
+		tsk->cwnd_cnt = 1;
+		tsk->cwnd = 0;
+		tsk->snd_wnd = 0;
+		tsk->recovery_point = tsk->snd_nxt;
+
+		if (send_buf_retrans(tsk, 0)) {
 			tcp_unhash(tsk);
 			tcp_bind_unhash(tsk);
-
 			tcp_unset_retrans_timer(tsk);
 		}
+
+		tcp_log_cwnd(tsk);
+
+		pthread_mutex_unlock(&tsk->c_lock);
 	}
 }
 
@@ -71,7 +83,7 @@ void tcp_scan_timer_list()
 void tcp_set_timewait_timer(struct tcp_sock *tsk)
 {
 	// fprintf(stdout, "implement %s please.\n", __FUNCTION__);
-	pthread_mutex_lock(&timer_list_lock);
+	pthread_mutex_lock(&timer_list_lock);	
 
 	if (tsk->timewait.enable) {
 		tsk->timewait.timeout = TCP_TIMEWAIT_TIMEOUT;
@@ -108,10 +120,7 @@ void tcp_set_retrans_timer(struct tcp_sock *tsk) {
 				HOST_IP_FMT_STR(tsk->sk_sip), tsk->sk_sport,
 				HOST_IP_FMT_STR(tsk->sk_dip), tsk->sk_dport);
 
-		log(INFO, "timer_list");
-		log(INFO, "timer_list: %p %p", timer_list.prev, timer_list.next);
 		list_add_tail(&tsk->retrans_timer.list, &timer_list);
-		log(INFO, "checkpoint 5");
 	}
 
 	pthread_mutex_unlock(&timer_list_lock);

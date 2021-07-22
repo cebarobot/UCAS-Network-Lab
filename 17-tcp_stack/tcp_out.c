@@ -26,11 +26,8 @@ void send_buf_insert(struct tcp_sock *tsk, char *packet, int len, u32 seq, u32 s
 	if (list_empty(&tsk->send_buf)) {
 		tcp_set_retrans_timer(tsk);
 	}
-	log(INFO, "checkpoint 1");
 
 	list_add_tail(&new_pend->list, &tsk->send_buf);
-
-	log(INFO, "checkpoint 1");
 
 	pthread_mutex_unlock(&tsk->send_buf_lock);
 }
@@ -60,7 +57,7 @@ void send_buf_sweep(struct tcp_sock *tsk) {
 	pthread_mutex_unlock(&tsk->send_buf_lock);
 }
 
-int send_buf_retrans(struct tcp_sock *tsk) {
+int send_buf_retrans(struct tcp_sock *tsk, int force_retrans) {
 	int ret = 0;
 
 	pthread_mutex_lock(&tsk->send_buf_lock);
@@ -74,7 +71,7 @@ int send_buf_retrans(struct tcp_sock *tsk) {
 		
 		ret = -1;
 
-	} else if (tcp_update_retrans_timer(tsk, p->retrans_times + 1)) {
+	} else if (force_retrans || tcp_update_retrans_timer(tsk, p->retrans_times + 1)) {
 		p->retrans_times += 1;
 
 		char *packet = malloc(p->packet_len);
@@ -87,6 +84,12 @@ int send_buf_retrans(struct tcp_sock *tsk) {
 	pthread_mutex_unlock(&tsk->send_buf_lock);
 
 	return ret;
+}
+
+int tcp_allow_to_send(struct tcp_sock * tsk, int len) {
+	int inflight = max(0, tsk->snd_nxt - tsk->snd_una - tsk->dup_ack_cnt * TCP_MSS);
+	log(DEBUG, "snd_wnd: %d; inflight: %d;", tsk->snd_wnd, inflight);
+	return (int)tsk->snd_wnd - inflight > len;
 }
 
 // initialize tcp header according to the arguments
@@ -201,14 +204,14 @@ void tcp_send_reset(struct tcp_cb *cb)
 
 // send tcp data packet
 int tcp_send_data(struct tcp_sock *tsk, char *buf, int len) {
-	len = min(len, ETH_FRAME_LEN - ETHER_HDR_SIZE - IP_BASE_HDR_SIZE - TCP_BASE_HDR_SIZE);
+	len = min(len, TCP_MSS);
 	
 	int data_pkt_len = ETHER_HDR_SIZE + IP_BASE_HDR_SIZE + TCP_BASE_HDR_SIZE + len;
 	char * data_pkt = malloc(data_pkt_len);
 	char * pkt_payload = data_pkt + ETHER_HDR_SIZE + IP_BASE_HDR_SIZE + TCP_BASE_HDR_SIZE;
 	memcpy(pkt_payload, buf, len);
 
-	while (tsk->snd_wnd < len) {
+	while (!tcp_allow_to_send(tsk, len)) {
 		log(DEBUG, "send windows %d but want to send %d.", tsk->snd_wnd, len);
 		tsk->snd_wnd = 0;
 		sleep_on(tsk->wait_send);

@@ -52,6 +52,9 @@ static inline int ring_buffer_full(struct ring_buffer *rbuf)
 #ifndef min
 #define min(x,y) ((x)<(y) ? (x) : (y))
 #endif
+#ifndef max
+#define max(x,y) ((x)<(y) ? (y) : (x))
+#endif
 
 static inline int read_ring_buffer(struct ring_buffer *rbuf, char *buf, int size)
 {

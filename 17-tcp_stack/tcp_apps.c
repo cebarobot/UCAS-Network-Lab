@@ -110,7 +110,6 @@ void *tcp_client(void *arg)
 			log(DEBUG, "tcp_sock_read return negative value, something goes wrong.");
 			exit(1);
 		}
-		sleep(1);
 	}
 
 	tcp_sock_close(tsk);
@@ -211,7 +210,7 @@ void *tcp_client_file(void *arg)
 			log(DEBUG, "the file is end.");
 			break;
 		}
-		usleep(10000);
+		usleep(100);
 	}
 
 	fclose(f);

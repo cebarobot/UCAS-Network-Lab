@@ -10,9 +10,12 @@
 #include "synch_wait.h"
 
 #include <pthread.h>
+#include <stdio.h>
 
 #define PORT_MIN	12345
 #define PORT_MAX	23456
+
+#define LOG_CWND
 
 struct sock_addr {
 	u32 ip;
@@ -112,6 +115,21 @@ struct tcp_sock {
 
 	// congestion window
 	u32 cwnd;
+	u32 cwnd_cnt;
+	FILE * cwnd_log_file;
+
+	// congestion state
+	enum {
+		OPEN, LOSS, RECOVERY
+		// SS, CA, FR
+	} c_state;
+
+	// lock of congestion control
+	pthread_mutex_t c_lock;
+
+	// duplicate ack
+	u32 dup_ack_cnt;
+	u32 dup_ack_seq;
 
 	// slow start threshold
 	u32 ssthresh;
@@ -148,7 +166,7 @@ u32 tcp_new_iss();
 
 void send_buf_insert(struct tcp_sock *tsk, char *packet, int len, u32 seq, u32 seq_len);
 void send_buf_sweep(struct tcp_sock *tsk);
-int send_buf_retrans(struct tcp_sock *tsk);
+int send_buf_retrans(struct tcp_sock *tsk, int force_retrans);
 
 void tcp_send_reset(struct tcp_cb *cb);
 
@@ -158,6 +176,8 @@ int tcp_send_data(struct tcp_sock *tsk, char *buf, int len);
 
 void tcp_process(struct tcp_sock *tsk, struct tcp_cb *cb, char *packet);
 void tcp_ofo_process(struct tcp_sock *tsk, struct tcp_cb *cb);
+
+void tcp_log_cwnd(struct tcp_sock *tsk);
 
 void init_tcp_stack();
 

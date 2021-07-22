@@ -26,11 +26,8 @@ void send_buf_insert(struct tcp_sock *tsk, char *packet, int len, u32 seq, u32 s
 	if (list_empty(&tsk->send_buf)) {
 		tcp_set_retrans_timer(tsk);
 	}
-	log(INFO, "checkpoint 1");
 
 	list_add_tail(&new_pend->list, &tsk->send_buf);
-
-	log(INFO, "checkpoint 1");
 
 	pthread_mutex_unlock(&tsk->send_buf_lock);
 }

@@ -43,7 +43,9 @@ struct tcphdr {
 
 #define TCP_DEFAULT_WINDOW 65535
 
-#define TCP_MAX_RETRANS_TIMES	3
+#define TCP_MAX_RETRANS_TIMES 3
+
+#define TCP_MSS (ETH_FRAME_LEN - ETHER_HDR_SIZE - IP_BASE_HDR_SIZE - TCP_BASE_HDR_SIZE)
 
 // control block, representing all the necesary information of a packet
 struct tcp_cb {

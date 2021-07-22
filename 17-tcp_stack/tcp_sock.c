@@ -6,6 +6,8 @@
 #include "rtable.h"
 #include "log.h"
 
+#include <sys/time.h>
+
 // TCP socks should be hashed into table for later lookup: Those which
 // occupy a port (either by *bind* or *connect*) should be hashed into
 // bind_table, those which listen for incoming connection request should be
@@ -23,6 +25,21 @@ inline void tcp_set_state(struct tcp_sock *tsk, int state)
 			HOST_IP_FMT_STR(tsk->sk_sip), tsk->sk_sport, \
 			tcp_state_str[tsk->state], tcp_state_str[state]);
 	tsk->state = state;
+}
+
+inline void tcp_log_cwnd(struct tcp_sock *tsk) {
+	if (tsk->c_state == OPEN) {
+		log(INFO, "cwnd = %d, %d, OPEN", tsk->cwnd, tsk->ssthresh);
+	} else if (tsk->c_state == LOSS) {
+		log(INFO, "cwnd = %d, %d, LOSS", tsk->cwnd, tsk->ssthresh);
+	} else if (tsk->c_state == RECOVERY) {
+		log(INFO, "cwnd = %d, %d, RECOVERY", tsk->cwnd, tsk->ssthresh);
+	}
+
+	struct timeval now;
+	gettimeofday(&now, NULL);
+	fprintf(tsk->cwnd_log_file, "%ld%06ld, %d, %d, %d\n", 
+			now.tv_sec, now.tv_usec, tsk->cwnd, tsk->ssthresh, tsk->c_state);
 }
 
 // init tcp hash table and tcp timer
@@ -77,7 +94,20 @@ struct tcp_sock *alloc_tcp_sock()
 	tsk->timewait.enable = 0;
 	tsk->retrans_timer.enable = 0;
 
-	log(DEBUG, "alloc a new tcp sock, ref_cnt = 1");
+	pthread_mutex_init(&tsk->c_lock, NULL);
+	tsk->c_state = OPEN;
+	tsk->cwnd = 1;
+	tsk->cwnd_cnt = 0;
+	tsk->dup_ack_cnt = 0;
+	tsk->ssthresh = 16;
+
+#ifdef LOG_CWND
+	char file_name[20];
+	sprintf(file_name, "cwnd_log_%lx.csv", (long)tsk % 127);
+	tsk->cwnd_log_file = fopen(file_name, "w");
+#endif
+
+	log(DEBUG, "alloc a new tcp sock %lx, ref_cnt = 1", (long)tsk % 127);
 	tsk->ref_cnt += 1;
 	return tsk;
 }
@@ -109,6 +139,8 @@ void free_tcp_sock(struct tcp_sock *tsk)
 		free_wait_struct(tsk->wait_accept);
 		free_wait_struct(tsk->wait_recv);
 		free_wait_struct(tsk->wait_send);
+
+		fclose(tsk->cwnd_log_file);
 
 		// free_snd_buf(tsk);
 		// free_rcv_ofo_buf(tsk);
@@ -441,7 +473,7 @@ struct tcp_sock *tcp_sock_accept(struct tcp_sock *tsk)
 void tcp_sock_close(struct tcp_sock *tsk)
 {
 	// fprintf(stdout, "TODO: implement %s please.\n", __FUNCTION__);
-	log(DEBUG, "close sock " IP_FMT ":%hu <-> " IP_FMT ":%hu, state %s", 
+	log(DEBUG, "close sock %lx: " IP_FMT ":%hu <-> " IP_FMT ":%hu, state %s", (long)tsk % 127, 
 			HOST_IP_FMT_STR(tsk->sk_sip), tsk->sk_sport,
 			HOST_IP_FMT_STR(tsk->sk_dip), tsk->sk_dport, tcp_state_str[tsk->state]);
 
